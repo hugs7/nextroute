@@ -46,20 +46,29 @@ const routeConfig: RouteConfig = {
   output: "./src/generated/routes.ts",
   watch: false,
   basePrefix: "/api",
+  paramTypes: {
+    userId: "string",
+    postId: "number",
+  },
+  imports: ["import { z } from 'zod';"],
 };
 
-export default routeConfig
+export default routeConfig;
 ```
 
 ### Configuration Options
 
-- **`input`** (string): The directory path to scan for route files. This should point to your Next.js API routes directory (e.g., `./src/app/api` or `./app`).
+- **`input`** (`string`, required): The directory path to scan for route files. This should point to your Next.js API routes directory (e.g., `./src/app/api` or `./app`).
 
-- **`output`** (string): The file path where the generated TypeScript routes file will be written. This file will contain all your type-safe route builders.
+- **`output`** (`string`, required): The file path where the generated TypeScript routes file will be written. This file will contain all your type-safe route builders.
 
-- **`watch`** (boolean): When set to `true`, the generator will run in watch mode and automatically regenerate routes whenever files change in the input directory. Defaults to `false`.
+- **`watch`** (`boolean`, optional): When set to `true`, the generator will run in watch mode and automatically regenerate routes whenever files change in the input directory. Defaults to `false`.
 
-- **`basePrefix`** (string): A prefix that will be prepended to all generated routes. For example, if your API routes are under `/api`, set this to `"/api"` so generated routes include this prefix.
+- **`basePrefix`** (`string`, optional): A prefix that will be prepended to all generated routes. For example, if your API routes are under `/api`, set this to `"/api"` so generated routes include this prefix. Defaults to `""`.
+
+- **`paramTypes`** (`Record<string, string>`, optional): A mapping of parameter names to their TypeScript types. This allows you to specify custom types for dynamic route parameters instead of the default `string` type. For example, `{ userId: "number", postId: "string" }` will type the `userId` parameter as a number. Defaults to `{}`. You can even specify custom stricter types such as database table, user type, etc. Any unspecified route params will have their type defaulted to `string`.
+
+- **`imports`** (`string[]`, optional): An array of import statements to include at the top of the generated routes file. Useful if your route builders need to reference custom types or utilities. For example, `["import { z } from 'zod';", "import type { User } from './types';"]`. Defaults to `[]`.
 
 ## CLI Commands
 

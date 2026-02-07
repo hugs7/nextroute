@@ -48,7 +48,14 @@ export interface RouteConfig {
   watch?: boolean;
   /** Base prefix for all routes (e.g., "/api") */
   basePrefix?: string;
-  /** Parameter type mappings */
+  /**
+   * Parameter type mappings
+   * Allows for defining custom types for route parameters,
+   * which will be used in the generated route builder for
+   * type safety.
+   *
+   * Any parameter not defined here will default to string type.
+   */
   paramTypes?: Record<string, string>;
   /** Additional imports to include in generated file */
   imports?: string[];
