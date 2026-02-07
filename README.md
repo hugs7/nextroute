@@ -172,21 +172,76 @@ routes.api.users.$userId("123").$(); // "/api/users/123"
 
 ### With Next.js
 
+By no means are the following examples an indication you are pinned to using certain libraries (e.g. Axios, Tanstack Query). Rather I provide some examples within the context of some common patterns.
+
+#### In Client Components
+
 ```typescript
-import { routes } from './generated/routes';
+'use client';
 
-// In API routes
-export async function GET(request: Request) {
-  const userRoute = routes.api.users.$userId('123');
-  return fetch(userRoute);
-}
+import { useState } from "react";
 
-// In Server Components
-async function UserProfile({ userId }: { userId: string }) {
-  const res = await fetch(routes.api.users.$userId(userId));
-  const user = await res.json();
+import axios from "axios";
+
+import { User } from "@/common/types";
+import { routes } from '@/generated/routes';
+
+export const UsersList = () => {
+  const [users, setUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    // Type-safe API calls from the client
+    axios.get(routes.api.users.$())
+      .then(res => res.data)
+      .then(setUsers);
+  }, []);
+
+  return <div>{/* render users */}</div>;
+};
+```
+
+#### In Server Components
+
+```typescript
+const UserProfile = async ({ userId }: { userId: string }) => {
+  // Call your API with type-safe routes
+  const { data: user } = await axios.get(routes.api.users.$userId(userId));
   return <div>{user.name}</div>;
-}
+};
+```
+
+#### For redirects
+
+```typescript
+import { redirect } from "next/navigation";
+
+const handleLogin = (userId: string) => {
+  redirect(routes.api.auth.callback.$());
+};
+```
+
+#### Building URLs for links
+
+```typescript
+const UserLink = ({ userId }: { userId: string }) => {
+  return <a href={routes.api.users.$userId(userId)}>View Profile</a>;
+};
+```
+
+#### With [TanStack Query](https://github.com/TanStack/query)
+
+```typescript
+import { useQuery } from '@tanstack/react-query';
+
+const UserProfile = ({ userId }: { userId: string }) => {
+  const { data: user, isLoading } = useQuery({
+    queryKey: ['user', userId],
+    queryFn: () => axios.get(routes.api.users.$userId(userId)).then(res => res.data),
+  });
+
+  if (isLoading) return <div>Loading...</div>;
+  return <div>{user?.name}</div>;
+};
 ```
 
 ## License
