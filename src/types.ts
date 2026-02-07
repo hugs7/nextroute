@@ -62,6 +62,8 @@ export interface RouteConfig {
     /** The module path to import from */
     from: string;
   };
+  /** Name for the generated routes constant (defaults to "routes") */
+  routesName?: string;
   /** Additional imports to include in generated file */
   imports?: string[];
 }

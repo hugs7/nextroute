@@ -2,8 +2,10 @@
  * Code generator for route files
  */
 
-import { RouteNode, RouteConfig } from "./types";
+import { defaultConfig } from "./config";
 import { PACKAGE_NAME } from "./constants";
+import { pascalCase } from "./string";
+import { RouteConfig, RouteNode } from "./types";
 
 /**
  * Generate TypeScript code for route structure constant
@@ -47,6 +49,9 @@ export const generateRouteFile = (structure: RouteNode, config: RouteConfig): st
   const structureCode = generateStructureCode(structure);
   const basePrefix = config.basePrefix || "";
   const customImports = config.imports?.join("\n") || "";
+  const routesName = config.routesName || defaultConfig.routesName;
+  const structureName = routesName.toUpperCase();
+  const typeName = pascalCase(routesName);
 
   // Generate paramTypeMap import or default to empty object
   const paramTypeMapImport = config.paramTypeMap
@@ -64,14 +69,14 @@ export const generateRouteFile = (structure: RouteNode, config: RouteConfig): st
 import { createRouteBuilder, RouteBuilderObject } from "${PACKAGE_NAME}";
 ${paramTypeMapImport ? paramTypeMapImport + "\n" : ""}${customImports ? customImports + "\n" : ""}
 // Route structure definition
-const ROUTE_STRUCTURE = {
+const ${structureName} = {
 ${structureCode}
 } as const;
 
 // Type-safe route builder with parameter types
-export type Routes = RouteBuilderObject<typeof ROUTE_STRUCTURE, ${paramTypeMapType}>;
+export type ${typeName} = RouteBuilderObject<typeof ${structureName}, ${paramTypeMapType}>;
 
 // Route builder instance
-export const routes = createRouteBuilder<typeof ROUTE_STRUCTURE, ${paramTypeMapType}>(ROUTE_STRUCTURE, [], "${basePrefix}");
+export const ${routesName} = createRouteBuilder<typeof ${structureName}, ${paramTypeMapType}>(${structureName}, [], "${basePrefix}");
 `;
 };
