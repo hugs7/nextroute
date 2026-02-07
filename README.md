@@ -1,4 +1,4 @@
-# Nextroute
+# Next Typed Routes
 
 Type-safe Next.js App Router route builder with automatic generation from your file system.
 
@@ -13,7 +13,7 @@ Type-safe Next.js App Router route builder with automatic generation from your f
 ## Installation
 
 ```bash
-npm install nextroute
+npm install next-typed-routes
 ```
 
 ## Quick Start
@@ -21,7 +21,7 @@ npm install nextroute
 ### 1. Generate Routes
 
 ```bash
-npx nextroute generate --input ./src/app/api --output ./src/generated/routes.ts
+npx next-typed-routes generate --input ./src/app/api --output ./src/generated/routes.ts
 ```
 
 ### 2. Use in Your Code
@@ -39,7 +39,7 @@ const listRoute = routes.api.users.$(); // "/api/users"
 Create a `routes.config.ts` file in your project root:
 
 ```typescript
-import type { RouteConfig } from "nextroute";
+import type { RouteConfig } from "next-typed-routes";
 
 const routeConfig: RouteConfig = {
   input: "./src/app/api",
@@ -58,7 +58,7 @@ export default routeConfig;
 
 ### Configuration Options
 
-- **`input`** (`string`, required): The directory path to scan for route files. This should point to your Next.js API routes directory (e.g., `./src/app/api` or `./src/app`). You can use nextroute for just your REST API backend or also for any page routes that return UI.
+- **`input`** (`string`, required): The directory path to scan for route files. This should point to your Next.js API routes directory (e.g., `./src/app/api` or `./src/app`). You can use next-typed-routes for just your REST API backend or also for any page routes that return UI.
 
 - **`output`** (`string`, required): The file path where the generated TypeScript routes file will be written. This file will contain all your type-safe route builders.
 
@@ -75,7 +75,7 @@ export default routeConfig;
 ### Generate Routes
 
 ```bash
-npx nextroute generate [options]
+npx next-typed-routes generate [options]
 ```
 
 Options:
@@ -88,7 +88,7 @@ Options:
 ### Watch Mode
 
 ```bash
-npx nextroute generate --watch
+npx next-typed-routes generate --watch
 ```
 
 This will watch your app directory and automatically regenerate routes when files change.
@@ -108,7 +108,7 @@ You can integrate the route generator into your development workflow to automati
     "dev": {
       "executor": "nx:run-commands",
       "options": {
-        "commands": ["next dev", "npx nextroute generate --watch"],
+        "commands": ["next dev", "npx next-typed-routes generate --watch"],
         "parallel": true
       }
     },
@@ -126,7 +126,7 @@ You can integrate the route generator into your development workflow to automati
 With `"parallel": true`, both commands run simultaneously:
 
 - `next dev` starts your Next.js development server
-- `npx nextroute generate --watch` watches for route file changes and regenerates types
+- `npx next-typed-routes generate --watch` watches for route file changes and regenerates types
 
 This ensures your route types stay in sync with your file system as you develop.
 

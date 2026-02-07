@@ -1,5 +1,5 @@
 {
-  "name": "nextroute",
+  "name": "next-typed-routes",
   "version": "0.1.0",
   "description": "A realtime typesafe Next.Js route generation tool",
   "keywords": [
@@ -23,7 +23,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "nextroute": "./dist/cli.js"
+    "next-typed-routes": "./dist/cli.js"
   },
   "exports": {
     ".": {
