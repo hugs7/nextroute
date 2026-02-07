@@ -1,4 +1,4 @@
-# Next Typed Routes
+# Next Typed Paths
 
 Type-safe Next.js App Router route builder with automatic generation from your file system.
 
