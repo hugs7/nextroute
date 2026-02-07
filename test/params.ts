@@ -2,7 +2,6 @@
  * Define custom types for route parameters
  */
 export interface RouteParamTypeMap {
-  userId: string;
+  userId: `user_${string}`;
   postId: number;
-  teamId: `team_${string}`;
 }
