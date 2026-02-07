@@ -1,0 +1,27 @@
+{
+  "name": "nextroute",
+  "version": "0.1.0",
+  "description": "A realtime typesafe Next.Js route generation tool",
+  "keywords": [
+    "nextjs",
+    "routes",
+    "typescript",
+    "type-safe",
+    "app-router"
+  ],
+  "homepage": "https://github.com/hugs7/nextroute#readme",
+  "bugs": {
+    "url": "https://github.com/hugs7/nextroute/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hugs7/nextroute.git"
+  },
+  "license": "MIT",
+  "author": "Hugo Burton",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "test": "vitest"
+  }
+}
