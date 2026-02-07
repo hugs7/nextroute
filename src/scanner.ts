@@ -1,0 +1,92 @@
+/**
+ * Scanner for Next.js app directory structure
+ */
+
+import { existsSync } from "fs";
+import { readdir } from "fs/promises";
+import { join, resolve } from "path";
+
+import { ROUTE_FILE_EXTENSIONS, ROUTE_FILE_NAME } from "./constants";
+import { RouteNode } from "./types";
+
+/**
+ * Check if a directory contains a route.ts/js file
+ */
+const hasRouteFile = async (dirPath: string): Promise<boolean> => {
+  const checks = await Promise.all(
+    ROUTE_FILE_EXTENSIONS.map(async (ext) => {
+      const routePath = join(dirPath, `${ROUTE_FILE_NAME}${ext}`);
+      return existsSync(routePath);
+    }),
+  );
+  return checks.some((exists) => exists);
+};
+
+/**
+ * Extract parameter name from Next.js dynamic segment [paramName]
+ */
+const extractParamName = (segment: string): string | null => {
+  const match = segment.match(/^\[(.+)\]$/);
+  return match ? (match[1] ?? null) : null;
+};
+
+/**
+ * Convert parameter name from Next.js format to camelCase with $ prefix
+ * e.g., [userId] -> $userId, [user-id] -> $userId
+ */
+const formatParamName = (paramName: string): string => {
+  // Convert kebab-case to camelCase
+  const camelCase = paramName.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+  return `$${camelCase}`;
+};
+
+/**
+ * Recursively scan a directory and build route structure
+ */
+export const scanDirectory = async (dirPath: string, basePath: string = ""): Promise<RouteNode> => {
+  const node: RouteNode = {};
+
+  if (!existsSync(dirPath)) {
+    throw new Error(`Directory does not exist: ${dirPath}`);
+  }
+
+  // Check if this directory itself has a route
+  if (await hasRouteFile(dirPath)) {
+    node.$route = true;
+  }
+
+  // Read directory contents
+  const entries = await readdir(dirPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    // Skip non-directories and special directories
+    if (!entry.isDirectory() || entry.name.startsWith(".") || entry.name === "node_modules") {
+      continue;
+    }
+
+    const entryPath = join(dirPath, entry.name);
+    const paramName = extractParamName(entry.name);
+
+    if (paramName) {
+      // Dynamic segment [paramName]
+      const formattedName = formatParamName(paramName);
+      const childNode = await scanDirectory(entryPath, `${basePath}/${entry.name}`);
+      childNode.$param = paramName;
+      node[formattedName] = childNode;
+    } else {
+      // Static segment
+      const childNode = await scanDirectory(entryPath, `${basePath}/${entry.name}`);
+      node[entry.name] = childNode;
+    }
+  }
+
+  return node;
+};
+
+/**
+ * Scan Next.js app directory and generate route structure
+ */
+export const generateRouteStructure = async (inputDir: string): Promise<RouteNode> => {
+  const resolvedPath = resolve(inputDir);
+  return scanDirectory(resolvedPath);
+};

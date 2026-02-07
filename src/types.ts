@@ -1,0 +1,55 @@
+/**
+ * Type definitions for route builder
+ */
+
+// Helper to check if an object has non-metadata keys (children)
+export type HasChildren<T> = keyof Omit<T, "$param" | "$route"> extends never ? false : true;
+
+// Get the type for a specific parameter from the type map
+export type GetParamType<P extends string, TMap = {}> = P extends keyof TMap ? TMap[P] : string;
+
+// Type-safe route builder types
+export type RouteBuilder<T, TMap = {}> = T extends { $param: infer P extends string }
+  ? HasChildren<T> extends true
+    ? (
+        param: GetParamType<P, TMap>,
+      ) => RouteBuilderObject<Omit<T, "$param">, TMap> & (T extends { $route: true } ? { $: () => string } : {})
+    : T extends { $route: true }
+      ? (param: GetParamType<P, TMap>) => string
+      : (param: GetParamType<P, TMap>) => RouteBuilderObject<Omit<T, "$param">, TMap>
+  : T extends { $route: true }
+    ? () => string
+    : T extends object
+      ? RouteBuilderObject<T, TMap>
+      : never;
+
+export type RouteBuilderObject<T, TMap = {}> = {
+  [K in keyof T as K extends "$param" | "$route" ? never : K]: RouteBuilder<T[K], TMap>;
+};
+
+/**
+ * Route structure node
+ */
+export interface RouteNode {
+  $param?: string;
+  $route?: boolean;
+  [key: string]: any;
+}
+
+/**
+ * Configuration options for route generation
+ */
+export interface RouteConfig {
+  /** Input directory to scan (e.g., "./app/api") */
+  input: string;
+  /** Output file path for generated routes */
+  output: string;
+  /** Watch for changes and regenerate */
+  watch?: boolean;
+  /** Base prefix for all routes (e.g., "/api") */
+  basePrefix?: string;
+  /** Parameter type mappings */
+  paramTypes?: Record<string, string>;
+  /** Additional imports to include in generated file */
+  imports?: string[];
+}
