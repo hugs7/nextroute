@@ -58,7 +58,7 @@ export default routeConfig;
 
 ### Configuration Options
 
-- **`input`** (`string`, required): The directory path to scan for route files. This should point to your Next.js API routes directory (e.g., `./src/app/api` or `./app`).
+- **`input`** (`string`, required): The directory path to scan for route files. This should point to your Next.js API routes directory (e.g., `./src/app/api` or `./src/app`). You can use nextroute for just your REST API backend or also for any page routes that return UI.
 
 - **`output`** (`string`, required): The file path where the generated TypeScript routes file will be written. This file will contain all your type-safe route builders.
 
