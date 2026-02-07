@@ -10,7 +10,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageJson = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
 const packageVersion = packageJson.version;
 
-export const PACKAGE_NAME = "next-typed-routes";
+export const PACKAGE_NAME = "next-typed-paths";
 export const PACKAGE_VERSION = packageVersion;
 export const CLI_NAME = PACKAGE_NAME;
 export const CONFIG_MODULE_NAME = "routes";
