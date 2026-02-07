@@ -17,7 +17,6 @@ export const defaultConfig: RouteConfig = {
   output: DEFAULT_OUTPUT_FILE,
   watch: false,
   basePrefix: DEFAULT_BASE_PREFIX,
-  paramTypes: {},
 };
 
 /**

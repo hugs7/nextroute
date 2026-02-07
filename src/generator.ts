@@ -41,25 +41,18 @@ const generateStructureCode = (structure: RouteNode, indent: number = 2): string
 };
 
 /**
- * Generate parameter type map from config
- */
-const generateParamTypeMap = (paramTypes?: Record<string, string>): string => {
-  if (!paramTypes || Object.keys(paramTypes).length === 0) {
-    return "{}";
-  }
-
-  const entries = Object.entries(paramTypes).map(([key, type]) => `  ${key}: ${type};`);
-  return `{\n${entries.join("\n")}\n}`;
-};
-
-/**
  * Generate complete route file content
  */
 export const generateRouteFile = (structure: RouteNode, config: RouteConfig): string => {
   const structureCode = generateStructureCode(structure);
-  const paramTypeMap = generateParamTypeMap(config.paramTypes);
   const basePrefix = config.basePrefix || "";
   const customImports = config.imports?.join("\n") || "";
+
+  // Generate paramTypeMap import or default to empty object
+  const paramTypeMapImport = config.paramTypeMap
+    ? `import type { ${config.paramTypeMap.type} } from "${config.paramTypeMap.from}";`
+    : "";
+  const paramTypeMapType = config.paramTypeMap ? config.paramTypeMap.type : "{}";
 
   return `/**
  * Auto-generated Next.js route builder
@@ -69,19 +62,16 @@ export const generateRouteFile = (structure: RouteNode, config: RouteConfig): st
  */
 
 import { createRouteBuilder, RouteBuilderObject } from "${PACKAGE_NAME}";
-${customImports ? "\n" + customImports + "\n" : ""}
+${paramTypeMapImport ? paramTypeMapImport + "\n" : ""}${customImports ? customImports + "\n" : ""}
 // Route structure definition
 const ROUTE_STRUCTURE = {
 ${structureCode}
 } as const;
 
-// Parameter type mappings
-type ParamTypeMap = ${paramTypeMap};
-
 // Type-safe route builder with parameter types
-export type Routes = RouteBuilderObject<typeof ROUTE_STRUCTURE, ParamTypeMap>;
+export type Routes = RouteBuilderObject<typeof ROUTE_STRUCTURE, ${paramTypeMapType}>;
 
 // Route builder instance
-export const routes = createRouteBuilder<typeof ROUTE_STRUCTURE, ParamTypeMap>(ROUTE_STRUCTURE, [], "${basePrefix}");
+export const routes = createRouteBuilder<typeof ROUTE_STRUCTURE, ${paramTypeMapType}>(ROUTE_STRUCTURE, [], "${basePrefix}");
 `;
 };

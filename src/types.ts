@@ -49,14 +49,17 @@ export interface RouteConfig {
   /** Base prefix for all routes (e.g., "/api") */
   basePrefix?: string;
   /**
-   * Parameter type mappings
-   * Allows for defining custom types for route parameters,
-   * which will be used in the generated route builder for
-   * type safety.
-   *
-   * Any parameter not defined here will default to string type.
+   * Parameter type map configuration
+   * Allows importing a type that defines parameter types
+   * @example
+   * { type: "MyParamTypes", from: "./types" }
    */
-  paramTypes?: Record<string, string>;
+  paramTypeMap?: {
+    /** The name of the type to import */
+    type: string;
+    /** The module path to import from */
+    from: string;
+  };
   /** Additional imports to include in generated file */
   imports?: string[];
 }
