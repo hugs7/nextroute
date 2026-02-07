@@ -6,18 +6,21 @@ import { existsSync } from "fs";
 import { readdir } from "fs/promises";
 import { join, resolve } from "path";
 
-import { ROUTE_FILE_EXTENSIONS, ROUTE_FILE_NAME } from "./constants";
+import { ROUTE_FILE_EXTENSIONS, ROUTE_FILE_NAME, PAGE_FILE_NAME } from "./constants";
 import { RouteNode } from "./types";
 
 /**
- * Check if a directory contains a route.ts/js file
+ * Check if a directory contains a route.ts or page.ts file
  */
 const hasRouteFile = async (dirPath: string): Promise<boolean> => {
+  const fileNames = [ROUTE_FILE_NAME, PAGE_FILE_NAME];
   const checks = await Promise.all(
-    ROUTE_FILE_EXTENSIONS.map(async (ext) => {
-      const routePath = join(dirPath, `${ROUTE_FILE_NAME}${ext}`);
-      return existsSync(routePath);
-    }),
+    fileNames.flatMap((fileName) =>
+      ROUTE_FILE_EXTENSIONS.map(async (ext) => {
+        const filePath = join(dirPath, `${fileName}${ext}`);
+        return existsSync(filePath);
+      }),
+    ),
   );
   return checks.some((exists) => exists);
 };

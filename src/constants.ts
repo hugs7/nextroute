@@ -23,3 +23,4 @@ export const DEFAULT_BASE_PREFIX = "/api";
 export const WATCH_DEBOUNCE_MS = 300;
 export const ROUTE_FILE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx"];
 export const ROUTE_FILE_NAME = "route";
+export const PAGE_FILE_NAME = "page";
