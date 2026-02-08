@@ -11,6 +11,17 @@ export const pascalCase = (str: string): string =>
     .join("");
 
 /**
+ * Format a string to camelCase
+ *
+ * @param str - The input string to format
+ * @returns The formatted string in camelCase
+ */
+export const camelCase = (str: string): string => {
+  const pascal = pascalCase(str);
+  return pascal.charAt(0).toLowerCase() + pascal.slice(1);
+};
+
+/**
  * Wrap a string with the specified wrapper
  *
  * @param str - The input string to wrap

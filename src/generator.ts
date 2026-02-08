@@ -7,7 +7,7 @@ import prettier from "prettier";
 
 import { defaultConfig } from "./config";
 import { PACKAGE_NAME, PRETTIER_DEFAULT_CONFIG } from "./constants";
-import { pascalCase, wrapDoubleQuotes } from "./string";
+import { camelCase, pascalCase, wrapDoubleQuotes } from "./string";
 import { RouteConfig, RouteNode } from "./types";
 
 /**
@@ -59,7 +59,7 @@ export const generateRouteFile = async (structure: RouteNode, config: RouteConfi
   const routesName = config.routesName ?? defaultConfig.routesName;
   const compiledRoutesName = routesName.toUpperCase();
   const typeName = pascalCase(routesName);
-  const structureName = [typeName, "Structure"].join("");
+  const structureName = [camelCase(typeName), "Structure"].join("");
   const paramTypeMapType = config.paramTypeMap ? config.paramTypeMap.type : "{}";
 
   // Create in-memory TypeScript project
