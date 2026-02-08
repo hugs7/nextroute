@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/hugs7/next-typed-paths#readme
+    about: Read the documentation for usage examples and API reference
+  - name: Discussions
+    url: https://github.com/hugs7/next-typed-paths/discussions
+    about: Ask questions and discuss ideas with the community

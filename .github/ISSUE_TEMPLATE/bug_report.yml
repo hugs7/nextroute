@@ -1,0 +1,101 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the form below.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the bug
+      placeholder: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Generate routes with config '...'
+        2. Use route builder '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: The route should be...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: Instead, the route...
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Your routes.config.ts file (if relevant)
+      placeholder: |
+        ```typescript
+        // routes.config.ts
+        ```
+      render: typescript
+
+  - type: textarea
+    id: directory
+    attributes:
+      label: Directory Structure
+      description: Your app directory structure (if relevant)
+      placeholder: |
+        app/
+          api/
+            users/
+              [userId]/
+                route.ts
+
+  - type: input
+    id: version
+    attributes:
+      label: next-typed-paths Version
+      description: What version of next-typed-paths are you using?
+      placeholder: 0.x.x
+    validations:
+      required: true
+
+  - type: input
+    id: next-version
+    attributes:
+      label: Next.js Version
+      description: What version of Next.js are you using?
+      placeholder: 16.0.0
+
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js Version
+      description: What version of Node.js are you using?
+      placeholder: 24.0.0
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context, screenshots, or logs
+      placeholder: Add any other relevant information here
