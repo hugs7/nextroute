@@ -7,7 +7,7 @@ import prettier from "prettier";
 
 import { defaultConfig } from "./config";
 import { PACKAGE_NAME, PRETTIER_DEFAULT_CONFIG } from "./constants";
-import { pascalCase } from "./string";
+import { pascalCase, wrapDoubleQuotes } from "./string";
 import { RouteConfig, RouteNode } from "./types";
 
 /**
@@ -24,13 +24,22 @@ const createObjectWriter = (structure: RouteNode): WriterFunction => {
       })
       .reduce(
         (acc, [key, value]) => {
-          if (typeof value === "object" && value !== null) {
-            acc[key] = createObjectWriter(value);
-          } else if (typeof value === "string") {
-            acc[key] = `"${value}"`;
-          } else {
-            acc[key] = String(value);
+          switch (typeof value) {
+            case "object":
+              if (value !== null) {
+                acc[key] = createObjectWriter(value);
+              }
+              break;
+            case "string":
+              acc[key] = wrapDoubleQuotes(value);
+              break;
+            case "boolean":
+            case "number":
+            default:
+              acc[key] = String(value);
+              break;
           }
+
           return acc;
         },
         {} as Record<string, string | WriterFunction>,
