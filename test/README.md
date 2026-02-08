@@ -9,6 +9,8 @@ test/
 ├── routes.config.ts          # Configuration with paramTypeMap
 ├── params.ts                 # Custom parameter type definitions
 ├── app/api/                  # Mock Next.js API routes
+|   ├── hyphened-route/
+│   │   └── route.ts
 │   ├── users/
 │   │   ├── route.ts
 │   │   └── [userId]/route.ts
