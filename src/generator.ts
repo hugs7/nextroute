@@ -2,87 +2,147 @@
  * Code generator for route files
  */
 
-import { RouteNode, RouteConfig } from "./types";
-import { PACKAGE_NAME } from "./constants";
+import { camelCase, snakeCase } from "lodash-es";
+import prettier from "prettier";
+import { Project, VariableDeclarationKind, WriterFunction, Writers } from "ts-morph";
+
+import { defaultConfig } from "./config";
+import { PACKAGE_NAME, PRETTIER_DEFAULT_CONFIG } from "./constants";
+import { pascalCase, wrapDoubleQuotes } from "./string";
+import { RouteConfig, RouteNode } from "./types";
 
 /**
- * Generate TypeScript code for route structure constant
+ * Convert RouteNode structure to ts-morph object literal writer
  */
-const generateStructureCode = (structure: RouteNode, indent: number = 2): string => {
-  const indentStr = " ".repeat(indent);
-  const lines: string[] = [];
+const createObjectWriter = (structure: RouteNode): WriterFunction => {
+  return Writers.object(
+    Object.entries(structure)
+      .sort(([a], [b]) => {
+        // Sort to put $param and $route first
+        const aOrder = a.startsWith("$") ? 0 : 1;
+        const bOrder = b.startsWith("$") ? 0 : 1;
+        return aOrder - bOrder;
+      })
+      .reduce(
+        (acc, [key, value]) => {
+          // Check if key needs to be quoted (contains special characters)
+          const needsQuotes = /[^a-zA-Z0-9_$]/.test(key);
+          const safeKey = needsQuotes ? wrapDoubleQuotes(key) : key;
 
-  // Sort entries to put $param and $route first
-  const entries = Object.entries(structure);
-  const metadataEntries = entries.filter(([key]) => key.startsWith("$"));
-  const regularEntries = entries.filter(([key]) => !key.startsWith("$"));
-  const sortedEntries = [...metadataEntries, ...regularEntries];
+          switch (typeof value) {
+            case "object":
+              if (value !== null) {
+                acc[safeKey] = createObjectWriter(value);
+              }
+              break;
+            case "string":
+              acc[safeKey] = wrapDoubleQuotes(value);
+              break;
+            case "boolean":
+            case "number":
+            default:
+              acc[safeKey] = String(value);
+              break;
+          }
 
-  for (const [key, value] of sortedEntries) {
-    // Check if key needs to be quoted (contains special characters)
-    const needsQuotes = /[^a-zA-Z0-9_$]/.test(key);
-    const quotedKey = needsQuotes ? `"${key}"` : key;
+          return acc;
+        },
+        {} as Record<string, string | WriterFunction>,
+      ),
+  );
+};
 
-    if (typeof value === "object" && value !== null) {
-      const childLines = generateStructureCode(value, indent + 2);
-      if (childLines) {
-        lines.push(`${indentStr}${quotedKey}: {`);
-        lines.push(childLines);
-        lines.push(`${indentStr}},`);
-      }
-    } else if (typeof value === "boolean") {
-      lines.push(`${indentStr}${quotedKey}: ${value},`);
-    } else if (typeof value === "string") {
-      lines.push(`${indentStr}${quotedKey}: "${value}",`);
+/**
+ * Generate complete route file content using ts-morph
+ */
+export const generateRouteFile = async (structure: RouteNode, config: RouteConfig): Promise<string> => {
+  const basePrefix = config.basePrefix ?? "";
+  const routesName = config.routesName ?? defaultConfig.routesName;
+  const compiledRoutesName = snakeCase(routesName).toUpperCase();
+  const typeName = pascalCase(routesName);
+  const structureName = [camelCase(typeName), "Structure"].join("");
+  const paramTypeMapType = config.paramTypeMap ? config.paramTypeMap.type : "{}";
+
+  // Create in-memory TypeScript project
+  const project = new Project({ useInMemoryFileSystem: true });
+  const sourceFile = project.createSourceFile("routes.ts");
+
+  // Add runtime imports
+  sourceFile.addImportDeclaration({
+    moduleSpecifier: PACKAGE_NAME,
+    namedImports: ["createRouteBuilder", "RouteBuilderObject"],
+  });
+
+  // Add paramTypeMap import if configured
+  if (config.paramTypeMap) {
+    sourceFile.addImportDeclaration({
+      moduleSpecifier: config.paramTypeMap.from,
+      namedImports: [{ name: config.paramTypeMap.type, isTypeOnly: true }],
+    });
+  }
+
+  // Add custom imports if provided
+  if (config.imports && config.imports.length > 0) {
+    for (const customImport of config.imports) {
+      sourceFile.addStatements(customImport);
     }
   }
 
-  return lines.join("\n");
-};
+  // Add route structure constant
+  sourceFile.addVariableStatement({
+    leadingTrivia: "// Route structure definition\n",
+    declarationKind: VariableDeclarationKind.Const,
+    declarations: [
+      {
+        name: structureName,
+        initializer: (writer) => {
+          createObjectWriter(structure)(writer);
+          writer.write(" as const");
+        },
+      },
+    ],
+  });
 
-/**
- * Generate parameter type map from config
- */
-const generateParamTypeMap = (paramTypes?: Record<string, string>): string => {
-  if (!paramTypes || Object.keys(paramTypes).length === 0) {
-    return "{}";
-  }
+  // Add type export
+  sourceFile.addTypeAlias({
+    leadingTrivia: "\n// Type-safe route builder with parameter types\n",
+    isExported: true,
+    name: typeName,
+    type: `RouteBuilderObject<typeof ${structureName}, ${paramTypeMapType}>`,
+  });
 
-  const entries = Object.entries(paramTypes).map(([key, type]) => `  ${key}: ${type};`);
-  return `{\n${entries.join("\n")}\n}`;
-};
+  // Add route builder instance
+  sourceFile.addVariableStatement({
+    leadingTrivia: "\n// Route builder instance\n",
+    isExported: true,
+    declarationKind: VariableDeclarationKind.Const,
+    declarations: [
+      {
+        name: compiledRoutesName,
+        initializer: `createRouteBuilder<typeof ${structureName}, ${paramTypeMapType}>(${structureName}, [], "${basePrefix}")`,
+      },
+    ],
+  });
 
-/**
- * Generate complete route file content
- */
-export const generateRouteFile = (structure: RouteNode, config: RouteConfig): string => {
-  const structureCode = generateStructureCode(structure);
-  const paramTypeMap = generateParamTypeMap(config.paramTypes);
-  const basePrefix = config.basePrefix || "";
-  const customImports = config.imports?.join("\n") || "";
+  const code = sourceFile.getFullText();
 
-  return `/**
+  // Load prettier config from the consuming project, fallback to defaults
+  const prettierConfig = (await prettier.resolveConfig(config.output)) || PRETTIER_DEFAULT_CONFIG;
+
+  // Add header comment and format with prettier
+  const formattedCode = await prettier.format(code, {
+    ...prettierConfig,
+    parser: "typescript",
+  });
+
+  const header = `/**
  * Auto-generated Next.js route builder
  * Generated from: ${config.input}
- * 
+ *
  * DO NOT EDIT THIS FILE MANUALLY - it will be regenerated
  */
 
-import { createRouteBuilder } from "${PACKAGE_NAME}/runtime";
-import type { RouteBuilderObject, GetParamType, HasChildren, RouteBuilder } from "${PACKAGE_NAME}/types";
-${customImports ? "\n" + customImports + "\n" : ""}
-// Route structure definition
-const ROUTE_STRUCTURE = {
-${structureCode}
-} as const;
-
-// Parameter type mappings
-type ParamTypeMap = ${paramTypeMap};
-
-// Type-safe route builder with parameter types
-export type Routes = RouteBuilderObject<typeof ROUTE_STRUCTURE, ParamTypeMap>;
-
-// Route builder instance
-export const routes = createRouteBuilder(ROUTE_STRUCTURE, [], "${basePrefix}") as Routes;
 `;
+
+  return header + formattedCode;
 };

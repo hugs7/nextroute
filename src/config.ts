@@ -12,13 +12,13 @@ const explorer = cosmiconfig(CONFIG_MODULE_NAME);
 /**
  * Default configuration
  */
-export const defaultConfig: RouteConfig = {
+export const defaultConfig = {
   input: DEFAULT_INPUT_DIR,
   output: DEFAULT_OUTPUT_FILE,
   watch: false,
   basePrefix: DEFAULT_BASE_PREFIX,
-  paramTypes: {},
-};
+  routesName: "routes",
+} as const satisfies RouteConfig;
 
 /**
  * Load configuration from file or use defaults

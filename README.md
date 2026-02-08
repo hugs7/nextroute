@@ -1,4 +1,10 @@
-# Next Typed Routes
+# Next Typed Paths
+
+[![npm version](https://img.shields.io/npm/v/next-typed-paths.svg?style=flat-square)](https://www.npmjs.com/package/next-typed-paths)
+[![npm downloads](https://img.shields.io/npm/dm/next-typed-paths.svg?style=flat-square)](https://www.npmjs.com/package/next-typed-paths)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/next-typed-paths?style=flat-square)](https://bundlephobia.com/package/next-typed-paths)
+[![license](https://img.shields.io/npm/l/next-typed-paths.svg?style=flat-square)](https://github.com/hugs7/next-typed-paths/blob/main/LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
 
 Type-safe Next.js App Router route builder with automatic generation from your file system.
 
@@ -46,14 +52,24 @@ const routeConfig: RouteConfig = {
   output: "./src/generated/routes.ts",
   watch: false,
   basePrefix: "/api",
-  paramTypes: {
-    userId: "string",
-    postId: "number",
+  paramTypeMap: {
+    type: "RouteParamTypeMap",
+    from: "../types/params",
   },
-  imports: ["import { z } from 'zod';"],
 };
 
 export default routeConfig;
+```
+
+Then create your parameter types file:
+
+```typescript
+// src/types/params.ts
+export type RouteParamTypeMap = {
+  userId: string;
+  postId: number;
+  teamId: `team_${string}`;
+};
 ```
 
 ### Configuration Options
@@ -66,8 +82,18 @@ export default routeConfig;
 
 - **`basePrefix`** (`string`, optional): A prefix that will be prepended to all generated routes. For example, if your API routes are under `/api`, set this to `"/api"` so generated routes include this prefix. Defaults to `""`.
 
-- **`paramTypes`** (`Record<string, string>`, optional): A mapping of parameter names to their TypeScript types. This allows you to specify custom types for dynamic route parameters instead of the default `string` type. For example, `{ userId: "number", postId: "string" }` will type the `userId` parameter as a number. Defaults to `{}`. You can even specify custom stricter types such as database table, user type, etc. Any unspecified route params will have their type defaulted to `string`.
-
+- **`paramTypeMap`** (`object`, optional): Configuration for importing custom parameter types from your codebase. This allows you to define parameter types as a proper TypeScript interface with full IDE support, including complex types like unions, branded types, template literals, etc.
+  - **`type`** (`string`): The name of the exported type/interface to import
+  - **`from`** (`string`): The module path to import from (**relative to the generated output file**)
+  - Example:
+    ```typescript
+    paramTypeMap: {
+      type: "RouteParamTypeMap",
+      from: "./params"
+    }
+    ```
+  - Any parameter not defined in your type map will default to `string` type.
+- **`routesName`** (`string`, optional): The name for the generated routes constant and type. The constant will be UPPERCASED (e.g., `"routes"` becomes `const ROUTES`), and the type will be PascalCased (e.g., `type Routes`). Defaults to `"routes"`.
 - **`imports`** (`string[]`, optional): An array of import statements to include at the top of the generated routes file. Useful if your route builders need to reference custom types or utilities. For example, `["import { z } from 'zod';", "import type { User } from './types';"]`. Defaults to `[]`.
 
 ## CLI Commands
@@ -160,14 +186,39 @@ import { routes } from "./generated/routes";
 // Static routes
 routes.api.auth.login(); // "/api/auth/login"
 
-// Dynamic routes
+// Dynamic routes with typed parameters
 routes.api.users.$userId("123"); // "/api/users/123"
+routes.api.posts.$postId(456); // "/api/posts/456" - number type from RouteParamTypeMap
 
 // Nested dynamic routes
 routes.api.posts.$postId("456").comments(); // "/api/posts/456/comments"
 
 // Access parent route
 routes.api.users.$userId("123").$(); // "/api/users/123"
+
+// Routes with children and self
+routes.api.users.$(); // "/api/users"
+routes.api.users.$userId("123"); // "/api/users/123"
+```
+
+### Custom Parameter Types
+
+Define strict parameter types for better type safety:
+
+```typescript
+// params.ts
+export interface RouteParamTypeMap {
+  userId: string;
+  postId: number;
+  teamId: `team_${string}`; // Branded string type
+  status: "active" | "inactive"; // Union type
+}
+
+// Usage - TypeScript enforces your parameter types
+routes.api.teams.$teamId("team_123"); // ✅ Valid
+routes.api.teams.$teamId("123"); // ❌ Type error - must start with "team_"
+routes.api.posts.$postId(456); // ✅ Valid - number type
+routes.api.posts.$postId("456"); // ❌ Type error - must be number
 ```
 
 ### With Next.js
