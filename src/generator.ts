@@ -2,7 +2,7 @@
  * Code generator for route files
  */
 
-import { camelCase } from "lodash-es";
+import { camelCase, snakeCase } from "lodash-es";
 import prettier from "prettier";
 import { Project, VariableDeclarationKind, WriterFunction, Writers } from "ts-morph";
 
@@ -58,7 +58,7 @@ const createObjectWriter = (structure: RouteNode): WriterFunction => {
 export const generateRouteFile = async (structure: RouteNode, config: RouteConfig): Promise<string> => {
   const basePrefix = config.basePrefix ?? "";
   const routesName = config.routesName ?? defaultConfig.routesName;
-  const compiledRoutesName = routesName.toUpperCase();
+  const compiledRoutesName = snakeCase(routesName).toUpperCase();
   const typeName = pascalCase(routesName);
   const structureName = [camelCase(typeName), "Structure"].join("");
   const paramTypeMapType = config.paramTypeMap ? config.paramTypeMap.type : "{}";
