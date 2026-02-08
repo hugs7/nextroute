@@ -22,6 +22,8 @@ Type-safe Next.js App Router route builder with automatic generation from your f
 npm install next-typed-paths
 ```
 
+Even though the generation happens at build time, you will still need this package at runtime since it constructs a runtime object: your route structure. Hence ensure you install **without** the `-D` flag via npm.
+
 ## Quick Start
 
 ### 1. Generate Routes
