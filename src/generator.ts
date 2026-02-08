@@ -25,17 +25,25 @@ const generateStructureCode = (structure: RouteNode, indent: number = 2): string
     const needsQuotes = /[^a-zA-Z0-9_$]/.test(key);
     const quotedKey = needsQuotes ? wrapDoubleQuotes(key) : key;
 
-    if (typeof value === "object" && value !== null) {
-      const childLines = generateStructureCode(value, indent + 2);
-      if (childLines) {
-        lines.push(`${indentStr}${quotedKey}: {`);
-        lines.push(childLines);
-        lines.push(`${indentStr}},`);
-      }
-    } else if (typeof value === "boolean") {
-      lines.push(`${indentStr}${quotedKey}: ${value},`);
-    } else if (typeof value === "string") {
-      lines.push(`${indentStr}${quotedKey}: ${wrapDoubleQuotes(value)},`);
+    switch (typeof value) {
+      case "object":
+        if (value !== null) {
+          const childLines = generateStructureCode(value, indent + 2);
+          if (childLines) {
+            lines.push(`${indentStr}${quotedKey}: {`);
+            lines.push(childLines);
+            lines.push(`${indentStr}},`);
+          }
+        }
+        break;
+
+      case "boolean":
+        lines.push(`${indentStr}${quotedKey}: ${value},`);
+        break;
+
+      case "string":
+        lines.push(`${indentStr}${quotedKey}: ${wrapDoubleQuotes(value)},`);
+        break;
     }
   }
 
