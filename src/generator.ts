@@ -24,19 +24,23 @@ const createObjectWriter = (structure: RouteNode): WriterFunction => {
       })
       .reduce(
         (acc, [key, value]) => {
+          // Check if key needs to be quoted (contains special characters)
+          const needsQuotes = /[^a-zA-Z0-9_$]/.test(key);
+          const safeKey = needsQuotes ? wrapDoubleQuotes(key) : key;
+
           switch (typeof value) {
             case "object":
               if (value !== null) {
-                acc[key] = createObjectWriter(value);
+                acc[safeKey] = createObjectWriter(value);
               }
               break;
             case "string":
-              acc[key] = wrapDoubleQuotes(value);
+              acc[safeKey] = wrapDoubleQuotes(value);
               break;
             case "boolean":
             case "number":
             default:
-              acc[key] = String(value);
+              acc[safeKey] = String(value);
               break;
           }
 
