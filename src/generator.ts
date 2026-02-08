@@ -55,9 +55,9 @@ const generateStructureCode = (structure: RouteNode, indent: number = 2): string
  */
 export const generateRouteFile = (structure: RouteNode, config: RouteConfig): string => {
   const structureCode = generateStructureCode(structure);
-  const basePrefix = config.basePrefix || "";
-  const customImports = config.imports?.join("\n") || "";
-  const routesName = config.routesName || defaultConfig.routesName;
+  const basePrefix = config.basePrefix ?? "";
+  const customImports = config.imports?.join("\n") ?? "";
+  const routesName = config.routesName ?? defaultConfig.routesName;
   const structureName = routesName.toUpperCase();
   const typeName = pascalCase(routesName);
 
