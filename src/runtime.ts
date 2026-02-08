@@ -11,7 +11,7 @@ import type { RouteBuilderObject } from "./types";
  */
 export const buildRoutePath = (segments: (string | number)[], basePrefix: string = ""): string => {
   const path = segments.map((s) => String(s)).join("/");
-  return basePrefix ? `${basePrefix}/${path}` : `/${path}`;
+  return [basePrefix, path].filter(Boolean).join("/");
 };
 
 /**
@@ -22,7 +22,7 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
   basePath: (string | number)[] = [],
   basePrefix: string = "",
 ): RouteBuilderObject<T, TMap> => {
-  const builder = {} as RouteBuilderObject<T, TMap>;
+  const builder: Record<string, any> = {};
 
   for (const [key, value] of Object.entries(structure)) {
     // Skip metadata keys
@@ -42,7 +42,7 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
 
       if (hasParam) {
         // This level has a parameter
-        (builder as any)[builderKey] = (param: string | number) => {
+        builder[builderKey] = (param: string | number) => {
           const paramPath = [...currentPath.slice(0, -1), param];
 
           if (hasChildren) {
@@ -64,7 +64,7 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
         };
       } else if (hasRoute && !hasChildren) {
         // Leaf route with no children or params
-        (builder as any)[builderKey] = () => buildRoutePath(currentPath, basePrefix);
+        builder[builderKey] = () => buildRoutePath(currentPath, basePrefix);
       } else {
         // Has children, recurse
         const children = createRouteBuilder(value, currentPath, basePrefix);
@@ -72,10 +72,10 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
           // Also a route itself
           Object.assign(children, { $: () => buildRoutePath(currentPath, basePrefix) });
         }
-        (builder as any)[builderKey] = children;
+        builder[builderKey] = children;
       }
     }
   }
 
-  return builder;
+  return builder as RouteBuilderObject<T, TMap>;
 };
