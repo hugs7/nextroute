@@ -5,7 +5,7 @@
 // Utility type to convert kebab-case to camelCase
 type CamelCase<S extends string> = S extends `${infer First}-${infer Rest}`
   ? `${Lowercase<First>}${Capitalize<CamelCase<Rest>>}`
-  : Lowercase<S>;
+  : S;
 
 /**
  * Special keys used in route structure for metadata
