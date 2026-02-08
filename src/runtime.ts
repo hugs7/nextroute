@@ -2,6 +2,8 @@
  * Core route builder runtime
  */
 
+import { camelCase } from "lodash-es";
+
 import type { RouteBuilderObject } from "./types";
 
 /**
@@ -24,11 +26,11 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
 
   for (const [key, value] of Object.entries(structure)) {
     // Skip metadata keys
-    if (key === "$param" || key === "$route" || key === "$segment") continue;
+    if (key === "$param" || key === "$route") continue;
 
-    // Use $segment if available (original hyphenated name), otherwise use key
-    const urlSegment = value?.$segment ?? key;
-    const currentPath = [...basePath, urlSegment];
+    // Transform key to camelCase for builder property, use original for URL
+    const builderKey = camelCase(key);
+    const currentPath = [...basePath, key];
 
     if (typeof value === "object") {
       const hasRoute = value.$route === true;
@@ -40,7 +42,7 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
 
       if (hasParam) {
         // This level has a parameter
-        (builder as any)[key] = (param: string | number) => {
+        (builder as any)[builderKey] = (param: string | number) => {
           const paramPath = [...currentPath.slice(0, -1), param];
 
           if (hasChildren) {
@@ -62,7 +64,7 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
         };
       } else if (hasRoute && !hasChildren) {
         // Leaf route with no children or params
-        (builder as any)[key] = () => buildRoutePath(currentPath, basePrefix);
+        (builder as any)[builderKey] = () => buildRoutePath(currentPath, basePrefix);
       } else {
         // Has children, recurse
         const children = createRouteBuilder(value, currentPath, basePrefix);
@@ -70,7 +72,7 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
           // Also a route itself
           Object.assign(children, { $: () => buildRoutePath(currentPath, basePrefix) });
         }
-        (builder as any)[key] = children;
+        (builder as any)[builderKey] = children;
       }
     }
   }

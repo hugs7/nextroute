@@ -2,6 +2,11 @@
  * Type definitions for route builder
  */
 
+// Utility type to convert kebab-case to camelCase
+type CamelCase<S extends string> = S extends `${infer First}-${infer Rest}`
+  ? `${Lowercase<First>}${Capitalize<CamelCase<Rest>>}`
+  : Lowercase<S>;
+
 // Helper to check if an object has non-metadata keys (children)
 export type HasChildren<T> = keyof Omit<T, "$param" | "$route"> extends never ? false : true;
 
@@ -26,7 +31,10 @@ export type RouteBuilder<T, TMap = {}> = T extends { $param: infer P extends str
       : never;
 
 export type RouteBuilderObject<T, TMap = {}> = {
-  [K in keyof T as K extends "$param" | "$route" ? never : K]: RouteBuilder<T[K], TMap>;
+  [K in keyof T as K extends "$param" | "$route" | "$segment" ? never : CamelCase<K & string>]: RouteBuilder<
+    T[K],
+    TMap
+  >;
 };
 
 /**
@@ -37,8 +45,6 @@ export interface RouteNode {
   $param?: string;
   /** Whether this node has a route file */
   $route?: boolean;
-  /** Original file system segment name (for URL generation) */
-  $segment?: string;
   [key: string]: any;
 }
 

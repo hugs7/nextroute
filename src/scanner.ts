@@ -45,18 +45,6 @@ const formatParamName = (paramName: string): string => {
 };
 
 /**
- * Transform static segment name to camelCase for TypeScript property access
- * e.g., "theatre-list" -> "theatreList", "hyphened-route" -> "hyphenedRoute"
- */
-const transformSegmentName = (segmentName: string): { key: string; original: string } => {
-  const camelCased = camelCase(segmentName);
-  return {
-    key: camelCased,
-    original: segmentName,
-  };
-};
-
-/**
  * Recursively scan a directory and build route structure
  */
 export const scanDirectory = async (dirPath: string, basePath: string = ""): Promise<RouteNode> => {
@@ -90,14 +78,9 @@ export const scanDirectory = async (dirPath: string, basePath: string = ""): Pro
       childNode.$param = paramName;
       node[formattedName] = childNode;
     } else {
-      // Static segment - transform to camelCase
-      const { key, original } = transformSegmentName(entry.name);
+      // Static segment - keep original name
       const childNode = await scanDirectory(entryPath, `${basePath}/${entry.name}`);
-      // Store original name if it differs from the camelCase key
-      if (key !== original) {
-        childNode.$segment = original;
-      }
-      node[key] = childNode;
+      node[entry.name] = childNode;
     }
   }
 
