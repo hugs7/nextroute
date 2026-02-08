@@ -2,15 +2,26 @@
  * Core route builder runtime
  */
 
-import type { RouteBuilderObject } from "./types";
+import { camelCase } from "lodash-es";
+
+import type { MetadataKey, RouteBuilderObject } from "./types";
 
 /**
  * Build a typed API route path from segments
  */
 export const buildRoutePath = (segments: (string | number)[], basePrefix: string = ""): string => {
   const path = segments.map((s) => String(s)).join("/");
-  return basePrefix ? `${basePrefix}/${path}` : `/${path}`;
+  return [basePrefix, path].filter(Boolean).join("/");
 };
+
+/**
+ * Determine if a key is a metadata key used in route structure
+ *
+ * @param key - The key to check
+ * @returns True if the key is a metadata key, false otherwise
+ */
+const isMetadataKey = (key: string): key is MetadataKey =>
+  (["$param", "$route"] satisfies MetadataKey[]).includes(key as MetadataKey);
 
 /**
  * Recursively build route builder functions from route structure
@@ -20,12 +31,14 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
   basePath: (string | number)[] = [],
   basePrefix: string = "",
 ): RouteBuilderObject<T, TMap> => {
-  const builder = {} as RouteBuilderObject<T, TMap>;
+  const builder: Record<string, any> = {};
 
   for (const [key, value] of Object.entries(structure)) {
-    // Skip metadata keys, but not route segment keys like $documentId
-    if (key === "$param" || key === "$route") continue;
+    // Skip metadata keys
+    if (isMetadataKey(key)) continue;
 
+    // Transform key to camelCase for builder property, use original for URL
+    const builderKey = camelCase(key);
     const currentPath = [...basePath, key];
 
     if (typeof value === "object") {
@@ -33,12 +46,12 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
       const hasParam = "$param" in value;
 
       // Check if there are children (non-metadata keys)
-      const childKeys = Object.keys(value).filter((k) => k !== "$param" && k !== "$route");
+      const childKeys = Object.keys(value).filter((k) => !k.startsWith("$"));
       const hasChildren = childKeys.length > 0;
 
       if (hasParam) {
         // This level has a parameter
-        (builder as any)[key] = (param: string | number) => {
+        builder[builderKey] = (param: string | number) => {
           const paramPath = [...currentPath.slice(0, -1), param];
 
           if (hasChildren) {
@@ -60,7 +73,7 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
         };
       } else if (hasRoute && !hasChildren) {
         // Leaf route with no children or params
-        (builder as any)[key] = () => buildRoutePath(currentPath, basePrefix);
+        builder[builderKey] = () => buildRoutePath(currentPath, basePrefix);
       } else {
         // Has children, recurse
         const children = createRouteBuilder(value, currentPath, basePrefix);
@@ -68,10 +81,10 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
           // Also a route itself
           Object.assign(children, { $: () => buildRoutePath(currentPath, basePrefix) });
         }
-        (builder as any)[key] = children;
+        builder[builderKey] = children;
       }
     }
   }
 
-  return builder;
+  return builder as RouteBuilderObject<T, TMap>;
 };

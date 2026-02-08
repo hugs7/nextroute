@@ -4,9 +4,10 @@
 
 import { existsSync } from "fs";
 import { readdir } from "fs/promises";
+import { camelCase } from "lodash-es";
 import { join, resolve } from "path";
 
-import { ROUTE_FILE_EXTENSIONS, ROUTE_FILE_NAME, PAGE_FILE_NAME } from "./constants";
+import { PAGE_FILE_NAME, ROUTE_FILE_EXTENSIONS, ROUTE_FILE_NAME } from "./constants";
 import { RouteNode } from "./types";
 
 /**
@@ -39,8 +40,8 @@ const extractParamName = (segment: string): string | null => {
  */
 const formatParamName = (paramName: string): string => {
   // Convert kebab-case to camelCase
-  const camelCase = paramName.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-  return `$${camelCase}`;
+  const camelCased = paramName.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+  return `$${camelCased}`;
 };
 
 /**
@@ -77,7 +78,7 @@ export const scanDirectory = async (dirPath: string, basePath: string = ""): Pro
       childNode.$param = paramName;
       node[formattedName] = childNode;
     } else {
-      // Static segment
+      // Static segment - keep original name
       const childNode = await scanDirectory(entryPath, `${basePath}/${entry.name}`);
       node[entry.name] = childNode;
     }
