@@ -123,8 +123,9 @@ This will watch your app directory and automatically regenerate routes when file
 
 You can integrate the route generator into your development workflow to automatically regenerate routes alongside your dev server. For example, if you are using [Nx](https://github.com/nrwl/nx), you can run both the Next.js dev server and the route generator in parallel:
 
+NX _project.json_
+
 ```json
-// project.json
 {
   "name": "your-next-app",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
@@ -148,6 +149,8 @@ You can integrate the route generator into your development workflow to automati
   }
 }
 ```
+
+By no means do you have to use Nx. You could use a more lightweight tool like [concurrently](https://github.com/open-cli-tools/concurrently), for example.
 
 With `"parallel": true`, both commands run simultaneously:
 
