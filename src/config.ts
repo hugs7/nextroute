@@ -5,7 +5,7 @@
 import { cosmiconfig } from "cosmiconfig";
 
 import { CONFIG_MODULE_NAME, DEFAULT_BASE_PREFIX, DEFAULT_INPUT_DIR, DEFAULT_OUTPUT_FILE } from "./constants";
-import { RouteConfig } from "./types";
+import { MaybeArray, RouteConfig } from "./types";
 
 const explorer = cosmiconfig(CONFIG_MODULE_NAME);
 
@@ -23,7 +23,7 @@ export const defaultConfig = {
 /**
  * Load configuration from file or use defaults
  */
-export const loadConfig = async (configPath?: string): Promise<RouteConfig> => {
+export const loadConfig = async (configPath?: string): Promise<MaybeArray<RouteConfig>> => {
   try {
     const result = configPath ? await explorer.load(configPath) : await explorer.search();
 

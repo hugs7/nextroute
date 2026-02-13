@@ -23,6 +23,7 @@ import { mkdirIfNotExists } from "./file";
 import { generateRouteFile } from "./generator";
 import { generateRouteStructure } from "./scanner";
 import { RouteConfig } from "./types";
+import { ensureArray } from "./utils";
 import { startWatcher } from "./watcher";
 
 const program = new Command();
@@ -73,29 +74,43 @@ program
   .option("-c, --config <path>", "Path to config file")
   .option("-p, --prefix <prefix>", "Base prefix for all routes")
   .action(async (options) => {
-    try {
-      // Load base config from file
-      const baseConfig = await loadConfig(options.config);
-
-      // Merge with CLI options
-      const config = mergeConfig(baseConfig, {
-        input: options.input,
-        output: options.output,
-        watch: options.watch,
-        basePrefix: options.prefix,
+    // Load base config from file
+    const baseConfigs = await loadConfig(options.config)
+      .then(ensureArray)
+      .catch((error) => {
+        console.error("❌ Error loading config:", error);
+        process.exit(1);
       });
 
-      // Generate initial routes
-      await generateRoutes(config);
+    const results = await Promise.allSettled(
+      baseConfigs.map(async (baseConfig) => {
+        try {
+          // Merge with CLI options
+          const config = mergeConfig(baseConfig, {
+            input: options.input,
+            output: options.output,
+            watch: options.watch,
+            basePrefix: options.prefix,
+          });
 
-      // Start watch mode if requested
-      if (config.watch) {
-        startWatcher(config, async () => {
+          // Generate initial routes
           await generateRoutes(config);
-        });
-      }
-    } catch (error) {
-      console.error(error);
+
+          // Start watch mode if requested
+          if (config.watch) {
+            startWatcher(config, async () => {
+              await generateRoutes(config);
+            });
+          }
+        } catch (error) {
+          console.error(error);
+          throw error;
+        }
+      }),
+    );
+
+    const hasErrors = results.some(({ status }) => status === "rejected");
+    if (hasErrors) {
       process.exit(1);
     }
   });
