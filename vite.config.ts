@@ -24,6 +24,7 @@ export default defineConfig({
       entry: {
         index: resolve(__dirname, "src/index.ts"),
         cli: resolve(__dirname, "src/cli.ts"),
+        runtime: resolve(__dirname, "src/runtime/index.ts"),
       },
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,

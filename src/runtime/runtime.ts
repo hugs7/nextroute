@@ -4,7 +4,7 @@
 
 import { camelCase } from "lodash-es";
 
-import type { MetadataKey, RouteBuilderObject } from "./types";
+import type { MetadataKey, RouteBuilderObject } from "@/types";
 
 /**
  * Build a typed API route path from segments
@@ -39,7 +39,7 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
 
     // Transform key to camelCase for builder property, use original for URL
     // Preserve $ prefix for parameter keys
-    const builderKey = key.startsWith('$') ? '$' + camelCase(key.slice(1)) : camelCase(key);
+    const builderKey = key.startsWith("$") ? "$" + camelCase(key.slice(1)) : camelCase(key);
     const currentPath = [...basePath, key];
 
     if (typeof value === "object") {
