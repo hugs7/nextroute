@@ -1,3 +1,10 @@
+export type ParamTypeMap = {
+  /** The name of the type to import */
+  type: string;
+  /** The module path to import from */
+  from: string;
+};
+
 /**
  * Configuration options for route generation
  */
@@ -16,12 +23,7 @@ export interface RouteConfig {
    * @example
    * { type: "MyParamTypes", from: "./types" }
    */
-  paramTypeMap?: {
-    /** The name of the type to import */
-    type: string;
-    /** The module path to import from */
-    from: string;
-  };
+  paramTypeMap?: ParamTypeMap;
   /** Name for the generated routes constant (defaults to "routes") */
   routesName?: string;
   /** Additional imports to include in generated file */
