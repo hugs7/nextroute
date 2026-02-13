@@ -6,6 +6,7 @@ import { cosmiconfig } from "cosmiconfig";
 
 import { CONFIG_MODULE_NAME, DEFAULT_BASE_PREFIX, DEFAULT_INPUT_DIR, DEFAULT_OUTPUT_FILE } from "./constants";
 import { MaybeArray, RouteConfig } from "./types";
+import { ensureArray } from "./utils";
 
 const explorer = cosmiconfig(CONFIG_MODULE_NAME);
 
@@ -23,22 +24,24 @@ export const defaultConfig = {
 /**
  * Load configuration from file or use defaults
  */
-export const loadConfig = async (configPath?: string): Promise<MaybeArray<RouteConfig>> => {
+export const loadConfig = async (configPath?: string): Promise<RouteConfig[]> => {
   try {
     const result = configPath ? await explorer.load(configPath) : await explorer.search();
 
     if (result && result.config) {
-      return {
+      const castedConfig = result.config as MaybeArray<RouteConfig>;
+
+      return ensureArray(castedConfig).map((config) => ({
         ...defaultConfig,
-        ...result.config,
-      };
+        ...config,
+      }));
     }
   } catch (error) {
     // Config file not found or invalid, use defaults
     console.warn("No config file found, using defaults");
   }
 
-  return defaultConfig;
+  return [defaultConfig];
 };
 
 /**

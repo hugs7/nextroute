@@ -23,7 +23,6 @@ import { mkdirIfNotExists } from "./file";
 import { generateRouteFile } from "./generator";
 import { generateRouteStructure } from "./scanner";
 import { RouteConfig } from "./types";
-import { ensureArray } from "./utils";
 import { startWatcher } from "./watcher";
 
 const program = new Command();
@@ -75,12 +74,10 @@ program
   .option("-p, --prefix <prefix>", "Base prefix for all routes")
   .action(async (options) => {
     // Load base config from file
-    const baseConfigs = await loadConfig(options.config)
-      .then(ensureArray)
-      .catch((error) => {
-        console.error("❌ Error loading config:", error);
-        process.exit(1);
-      });
+    const baseConfigs = await loadConfig(options.config).catch((error) => {
+      console.error("❌ Error loading config:", error);
+      process.exit(1);
+    });
 
     const results = await Promise.allSettled(
       baseConfigs.map(async (baseConfig) => {
