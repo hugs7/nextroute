@@ -3,7 +3,7 @@
  */
 
 export { defaultConfig, loadConfig, mergeConfig } from "./config";
-export * from "./constants";
+export { CLI_NAME, CONFIG_FILE_NAME, CONFIG_MODULE_NAME, PACKAGE_NAME, PACKAGE_VERSION } from "./constants";
 export { generateRouteFile } from "./generator";
 export { buildRoutePath, createRouteBuilder } from "./runtime";
 export { generateRouteStructure, scanDirectory } from "./scanner";
