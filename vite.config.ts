@@ -30,8 +30,8 @@ export default defineConfig({
         cli: resolve(__dirname, "src/cli.ts"),
         "runtime/index": resolve(__dirname, "src/runtime/index.ts"),
       },
-      formats: ["es"],
-      fileName: (_format, entryName) => `${entryName}.js`,
+      formats: ["es", "cjs"],
+      fileName: (format, entryName) => `${entryName}.${format === "es" ? "js" : "cjs"}`,
     },
     minify: isCI,
     rollupOptions: {
