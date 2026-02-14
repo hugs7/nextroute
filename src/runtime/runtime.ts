@@ -11,7 +11,9 @@ import type { MetadataKey, RouteBuilderObject } from "./types";
  */
 export const buildRoutePath = (segments: (string | number)[], basePrefix: string = ""): string => {
   const path = segments.map((s) => String(s)).join("/");
-  return [basePrefix, path].filter(Boolean).join("/");
+  const result = [basePrefix, path].filter(Boolean).join("/");
+  // Replace consecutive slashes with a single slash
+  return result.replace(/\/+/g, "/");
 };
 
 /**
