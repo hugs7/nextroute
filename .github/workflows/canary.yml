@@ -1,0 +1,68 @@
+name: Publish NPM canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_version:
+        description: Stable version this canary precedes
+        required: true
+        default: "1.0.0"
+        type: string
+
+concurrency:
+  group: npm-canary-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  npm:
+    name: NPM Canary
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout the repo
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify package
+        run: |
+          pnpm build
+          pnpm vitest run
+          pnpm test:e2e
+
+      - name: Set canary version
+        id: version
+        env:
+          BASE_VERSION: ${{ inputs.base_version }}
+        run: |
+          VERSION="${BASE_VERSION}-alpha.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}.${GITHUB_SHA::7}"
+          pnpm version "$VERSION" --no-git-tag-version
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Publish canary
+        run: pnpm publish --access public --tag alpha --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Add install instructions
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "## Published next-typed-paths@$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "pnpm add next-typed-paths@$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
