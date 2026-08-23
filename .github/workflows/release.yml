@@ -71,7 +71,7 @@ jobs:
           fi
 
           echo "Bumping $VERSION_TYPE version"
-          pnpm version $VERSION_TYPE -m "chore(release): v%s [skip ci]"
+          pnpm version $VERSION_TYPE --message "chore(release): v%s [skip ci]"
           echo "should_publish=true" >> $GITHUB_OUTPUT
 
       - name: Publish to NPM

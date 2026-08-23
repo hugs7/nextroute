@@ -185,6 +185,19 @@ Common error schemas belong in an application-owned contracts module and can be 
 not prescribe an error shape because `{ error: string }`, validation details, and authentication errors are application
 conventions rather than Next.js route semantics.
 
+### Testing a canary
+
+Run the **Publish NPM canary** workflow from GitHub Actions and select the branch to publish. It verifies the package,
+publishes a unique `1.0.0-alpha.<run>.<attempt>.<sha>` version under the `alpha` dist-tag, and prints the exact install
+command in its workflow summary. The repository's existing `NPM_TOKEN` secret is required.
+
+For a pnpm workspace such as Pleo, install the printed version and regenerate routes:
+
+```bash
+pnpm add --workspace-root next-typed-paths@1.0.0-alpha.<run>.<attempt>.<sha>
+pnpm routes:generate
+```
+
 ### Portable generated routes
 
 Local output can reference an inline contract in `route.ts`. For generated files published from another package,
@@ -192,9 +205,7 @@ declare the contract in a publishable shared module and re-export it:
 
 ```typescript
 // @acme/api-contracts
-export const userRouteContract = defineRouteContract({
-  /* methods */
-});
+export const userRouteContract = defineRouteContract({/* methods */});
 
 // app/api/users/[userId]/route.ts
 export { userRouteContract as routeContract } from "@acme/api-contracts";

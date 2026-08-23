@@ -64,5 +64,6 @@ jobs:
         run: |
           echo "## Published next-typed-paths@$VERSION" >> "$GITHUB_STEP_SUMMARY"
           echo '```bash' >> "$GITHUB_STEP_SUMMARY"
-          echo "pnpm add next-typed-paths@$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "pnpm add --workspace-root next-typed-paths@$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "pnpm routes:generate" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
