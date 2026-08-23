@@ -34,13 +34,37 @@ type RequestSchemaKey = keyof RouteRequestSchemas;
 type SchemaAt<Contract, Key extends RequestSchemaKey> =
   Contract extends Record<Key, infer Schema extends z.ZodType> ? Schema : never;
 
-export type RouteInput<Contract extends RouteMethodContract> = {
-  [Key in RequestSchemaKey as Contract extends Record<Key, z.ZodType> ? Key : never]: z.output<SchemaAt<Contract, Key>>;
+type ConfiguredRequestKey<Contract> = {
+  [Key in RequestSchemaKey]: Contract extends Record<Key, z.ZodType> ? Key : never;
+}[RequestSchemaKey];
+
+type OptionalInputKey<Contract> = {
+  [Key in ConfiguredRequestKey<Contract>]: undefined extends z.input<SchemaAt<Contract, Key>> ? Key : never;
+}[ConfiguredRequestKey<Contract>];
+
+type OptionalOutputKey<Contract> = {
+  [Key in ConfiguredRequestKey<Contract>]: undefined extends z.output<SchemaAt<Contract, Key>> ? Key : never;
+}[ConfiguredRequestKey<Contract>];
+
+type Simplify<Value> = {
+  [Key in keyof Value]: Value[Key];
 };
 
-export type RouteRequest<Contract extends RouteMethodContract> = {
-  [Key in RequestSchemaKey as Contract extends Record<Key, z.ZodType> ? Key : never]: z.input<SchemaAt<Contract, Key>>;
-};
+export type RouteInput<Contract extends RouteMethodContract> = Simplify<
+  {
+    [Key in Exclude<ConfiguredRequestKey<Contract>, OptionalOutputKey<Contract>>]: z.output<SchemaAt<Contract, Key>>;
+  } & {
+    [Key in OptionalOutputKey<Contract>]?: z.output<SchemaAt<Contract, Key>>;
+  }
+>;
+
+export type RouteRequest<Contract extends RouteMethodContract> = Simplify<
+  {
+    [Key in Exclude<ConfiguredRequestKey<Contract>, OptionalInputKey<Contract>>]: z.input<SchemaAt<Contract, Key>>;
+  } & {
+    [Key in OptionalInputKey<Contract>]?: z.input<SchemaAt<Contract, Key>>;
+  }
+>;
 
 export type RouteResponseStatus<Contract extends RouteMethodContract> = keyof Contract["responses"] & number;
 

@@ -36,12 +36,17 @@ type CommonRequestOptions = {
 
 type ContractRequestOptions<Contract extends RouteMethodContract> = Omit<RouteRequest<Contract>, "params">;
 
+type RequiredKey<Value> = {
+  [Key in keyof Value]-?: {} extends Pick<Value, Key> ? never : Key;
+}[keyof Value];
+
 export type RouteClientRequestOptions<Contract extends RouteMethodContract> = ContractRequestOptions<Contract> &
   CommonRequestOptions;
 
-type RequestArguments<Contract extends RouteMethodContract> = keyof ContractRequestOptions<Contract> extends never
-  ? [options?: RouteClientRequestOptions<Contract>]
-  : [options: RouteClientRequestOptions<Contract>];
+type RequestArguments<Contract extends RouteMethodContract> =
+  RequiredKey<ContractRequestOptions<Contract>> extends never
+    ? [options?: RouteClientRequestOptions<Contract>]
+    : [options: RouteClientRequestOptions<Contract>];
 
 export type RouteClient = {
   request<Route extends TypedRoute<RouteContract>, Method extends ContractMethod<Route>>(

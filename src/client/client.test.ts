@@ -17,7 +17,15 @@ const routeContract = defineRouteContract({
   },
 });
 
+const optionalRouteContract = defineRouteContract({
+  GET: {
+    query: z.object({ search: z.string() }).optional(),
+    responses: { 200: jsonResponse(z.array(z.string())) },
+  },
+});
+
 const route = "/users" as TypedRoute<typeof routeContract>;
+const optionalRoute = "/search" as TypedRoute<typeof optionalRouteContract>;
 
 describe("route client", () => {
   it("serializes contract input and returns typed responses", async () => {
@@ -52,6 +60,7 @@ describe("route client", () => {
       void client.request(route, "POST", {});
       // @ts-expect-error GET requires its declared query input.
       void client.request(route, "GET");
+      void client.request(optionalRoute, "GET");
     }
 
     expect(client).toBeDefined();
