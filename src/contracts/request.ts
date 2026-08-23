@@ -23,7 +23,14 @@ const getMultiValueInput = <Value>(source: MultiValueInput<Value>): Record<strin
 
   for (const key of new Set(source.keys())) {
     const values = source.getAll(key);
-    input[key] = values.length === 1 ? values[0] : values;
+    if (values.length === 1) {
+      const [value] = values;
+      if (value) {
+        input[key] = value;
+      }
+    } else {
+      input[key] = values;
+    }
   }
 
   return input;
