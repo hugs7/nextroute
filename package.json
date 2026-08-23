@@ -106,10 +106,5 @@
     "axios": {
       "optional": true
     }
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
   }
 }
