@@ -3,6 +3,7 @@
  */
 
 import { camelCase, snakeCase } from "lodash-es";
+import { dirname, isAbsolute, relative, resolve, sep } from "path";
 import prettier from "prettier";
 import { Project, VariableDeclarationKind, WriterFunction, Writers } from "ts-morph";
 
@@ -10,15 +11,24 @@ import { defaultConfig } from "@/config";
 import { PACKAGE_NAME, PRETTIER_DEFAULT_CONFIG, RUNTIME_SUBMODULE } from "@/constants";
 import { RouteNode } from "@/runtime";
 import { isMetadataKey } from "@/runtime/runtime";
+import type { RouteContractReference } from "@/scanner";
 import { pascalCase, wrapDoubleQuotes } from "@/string";
-import { RouteConfig } from "@/types";
+import { ContractMode, RouteConfig } from "@/types";
 
 /**
  * Convert RouteNode structure to ts-morph object literal writer
  */
-const createObjectWriter = (structure: RouteNode): WriterFunction => {
+type ContractTree = {
+  contractValue?: string;
+  children: Record<string, ContractTree>;
+};
+
+const createObjectWriter = (structure: RouteNode, contracts: ContractTree): WriterFunction => {
   return Writers.object(
-    Object.entries(structure)
+    [
+      ...Object.entries(structure),
+      ...(contracts.contractValue ? [["$$contract", contracts.contractValue] as const] : []),
+    ]
       .sort(([a], [b]) => {
         // Sort to put metadata keys first
         const aOrder = isMetadataKey(a) ? 0 : 1;
@@ -31,10 +41,15 @@ const createObjectWriter = (structure: RouteNode): WriterFunction => {
           const needsQuotes = /[^a-zA-Z0-9_$]/.test(key);
           const safeKey = needsQuotes ? wrapDoubleQuotes(key) : key;
 
+          if (key === "$$contract") {
+            acc[safeKey] = value;
+            return acc;
+          }
+
           switch (typeof value) {
             case "object":
               if (value !== null) {
-                acc[safeKey] = createObjectWriter(value);
+                acc[safeKey] = createObjectWriter(value, contracts.children[key] ?? { children: {} });
               }
               break;
             case "string":
@@ -54,16 +69,62 @@ const createObjectWriter = (structure: RouteNode): WriterFunction => {
   );
 };
 
+const createContractTree = (contracts: { contractValue: string; segments: string[] }[]): ContractTree => {
+  const root: ContractTree = { children: {} };
+
+  for (const contract of contracts) {
+    let node = root;
+    for (const segment of contract.segments) {
+      node.children[segment] ??= { children: {} };
+      node = node.children[segment];
+    }
+    node.contractValue = contract.contractValue;
+  }
+
+  return root;
+};
+
+const moduleSpecifier = (outputPath: string, sourcePath: string): string => {
+  const path = relative(dirname(resolve(outputPath)), sourcePath)
+    .replace(/\\/g, "/")
+    .replace(/\.(?:js|jsx|ts|tsx)$/, "");
+  return path.startsWith(".") ? path : `./${path}`;
+};
+
+const inferNextProjectRoot = (input: string): string => {
+  const resolvedInput = resolve(input);
+  const segments = resolvedInput.split(sep);
+  const appIndex = segments.lastIndexOf("app");
+  if (appIndex < 0) return dirname(resolvedInput);
+  const rootIndex = segments[appIndex - 1] === "src" ? appIndex - 1 : appIndex;
+  return segments.slice(0, rootIndex).join(sep) || sep;
+};
+
+export const resolveContractMode = (config: RouteConfig): Exclude<ContractMode, "auto"> => {
+  if (config.contractMode && config.contractMode !== "auto") return config.contractMode;
+  const outputFromRoot = relative(inferNextProjectRoot(config.input), resolve(config.output));
+  return outputFromRoot.startsWith("..") || isAbsolute(outputFromRoot) ? "external" : "internal";
+};
+
+const schemaName = (contractIndex: number, method: string, suffix: string): string =>
+  `routeContract${contractIndex}${pascalCase(method)}${suffix}Schema`;
+
 /**
  * Generate complete route file content using ts-morph
  */
-export const generateRouteFile = async (structure: RouteNode, config: RouteConfig): Promise<string> => {
+export const generateRouteFile = async (
+  structure: RouteNode,
+  config: RouteConfig,
+  contracts: RouteContractReference[] = [],
+): Promise<string> => {
+  const includedContracts = config.contracts === false ? [] : contracts;
   const basePrefix = config.basePrefix ?? "";
   const routesName = config.routesName ?? defaultConfig.routesName;
   const compiledRoutesName = snakeCase(routesName).toUpperCase();
   const typeName = pascalCase(routesName);
   const structureName = [camelCase(typeName), "Structure"].join("");
   const paramTypeMapType = config.paramTypeMap ? config.paramTypeMap.type : "{}";
+  const contractMode = resolveContractMode(config);
 
   // Create in-memory TypeScript project
   const project = new Project({ useInMemoryFileSystem: true });
@@ -73,6 +134,41 @@ export const generateRouteFile = async (structure: RouteNode, config: RouteConfi
   sourceFile.addImportDeclaration({
     moduleSpecifier: [PACKAGE_NAME, RUNTIME_SUBMODULE].join("/"),
     namedImports: ["createRouteBuilder", "RouteBuilderObject"],
+  });
+
+  const contractValues: { contractValue: string; segments: string[] }[] = [];
+  if (includedContracts.length > 0 && contractMode === "external") {
+    sourceFile.addImportDeclaration({ moduleSpecifier: "zod", namedImports: ["z"] });
+  }
+
+  includedContracts.forEach((contract, contractIndex) => {
+    if (contractMode === "internal") {
+      const alias = `routeContract${contractIndex}`;
+      sourceFile.addImportDeclaration({
+        moduleSpecifier: moduleSpecifier(config.output, contract.sourcePath),
+        namedImports: [{ alias, name: "routeContract" }],
+      });
+      contractValues.push({ contractValue: alias, segments: contract.segments });
+      return;
+    }
+
+    const methods = contract.methods.map(({ method, requestSchema, responses }) => {
+      const requestName = schemaName(contractIndex, method, "Request");
+      sourceFile.addVariableStatement({
+        declarationKind: VariableDeclarationKind.Const,
+        declarations: [{ initializer: requestSchema, name: requestName }],
+      });
+      const responseSchemas = responses.map(({ schema, status }) => {
+        const responseName = schemaName(contractIndex, method, `Response${status}`);
+        sourceFile.addVariableStatement({
+          declarationKind: VariableDeclarationKind.Const,
+          declarations: [{ initializer: schema, name: responseName }],
+        });
+        return `${status}: ${responseName}`;
+      });
+      return `${method}: { request: ${requestName}, responses: { ${responseSchemas.join(", ")} } }`;
+    });
+    contractValues.push({ contractValue: `{ ${methods.join(", ")} }`, segments: contract.segments });
   });
 
   // Add paramTypeMap import if configured
@@ -98,7 +194,7 @@ export const generateRouteFile = async (structure: RouteNode, config: RouteConfi
       {
         name: structureName,
         initializer: (writer) => {
-          createObjectWriter(structure)(writer);
+          createObjectWriter(structure, createContractTree(contractValues))(writer);
           writer.write(" as const");
         },
       },

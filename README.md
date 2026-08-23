@@ -13,16 +13,23 @@ Type-safe Next.js App Router route builder with automatic generation from your f
 - 🔒 **Fully Type-Safe**: Get autocomplete and type checking for all your routes
 - 🔄 **Auto-Generated**: Scans your Next.js app directory and generates routes automatically
 - 👀 **Live Updates**: Watch mode regenerates routes when files change
+- 🔗 **End-to-End Contracts**: One Zod contract types paths, handlers, requests, and responses
 - ⚙️ **Configurable**: Support for config files and CLI options
-- 📦 **Zero Runtime Cost**: All types are compile-time only
+- 📦 **Small Runtime**: Contract metadata is erased from generated browser code
 
 ## Installation
 
 ```bash
-npm install next-typed-paths
+npm install next-typed-paths zod
 ```
 
 Even though the generation happens at build time, you will still need this package at runtime since it constructs a runtime object: your route structure. Hence ensure you install **without** the `-D` flag via npm.
+
+Axios support is optional. Install Axios only when using the `next-typed-paths/axios` entry point:
+
+```bash
+npm install axios
+```
 
 ## Quick Start
 
@@ -42,6 +49,165 @@ const userRoute = routes.api.users.$userId("123"); // "/api/users/123"
 const listRoute = routes.api.users.$(); // "/api/users"
 ```
 
+## End-to-end route contracts
+
+Export one method-keyed `routeContract` from an App Router `route.ts`. Request callers use each schema's Zod input
+type, while validated handlers receive its parsed output type. Responses are discriminated by status.
+
+```typescript
+// src/app/api/users/[userId]/route.ts
+import { z } from "zod";
+
+import { defineRouteContract, jsonResponse, routeJson } from "next-typed-paths/contracts";
+import { createRouteHandler } from "next-typed-paths/next";
+
+const params = z.object({ userId: z.string().uuid() });
+
+export const routeContract = defineRouteContract({
+  GET: {
+    params,
+    query: z.object({ includePermissions: z.coerce.boolean().optional() }),
+    responses: {
+      200: jsonResponse(z.object({ id: z.string().uuid(), name: z.string() })),
+      404: jsonResponse(z.object({ message: z.string() })),
+    },
+  },
+  PATCH: {
+    params,
+    body: z.object({ name: z.string().trim().min(1) }),
+    responses: {
+      200: jsonResponse(z.object({ id: z.string().uuid(), name: z.string() })),
+      404: jsonResponse(z.object({ message: z.string() })),
+    },
+  },
+});
+
+export const GET = createRouteHandler(routeContract.GET, async ({ input }) => {
+  const user = await findUser(input.params.userId, input.query.includePermissions);
+  if (!user) return routeJson(routeContract.GET, 404, { message: "Not found" });
+  return routeJson(routeContract.GET, 200, user);
+});
+```
+
+The adapter is optional. Contract request fields deliberately sit at the method-contract top level, so an existing
+middleware composer can consume the exact same value without next-typed-paths depending on that middleware:
+
+```typescript
+export const PATCH = createSiteValidatedRoute(routeContract.PATCH)(async ({ input }) => {
+  // input.params and input.body are inferred Zod outputs
+});
+```
+
+`parseRouteRequest(routeContract.PATCH, request, context)` is available when a custom composer needs a lower-level
+integration. `routeJson` and `routeNoContent` enforce declared status/content-type combinations.
+
+After generation, each contracted node in the route structure carries its schemas under `$$contract`. `RouteBuilderObject`
+therefore derives paths and API types from one structure without a separate contract type parameter. The generator chooses
+where those schemas come from based on where the output lives:
+
+- **Internal output** imports each route's `routeContract` and assigns it directly to `$$contract`.
+- **External output** emits standalone Zod schemas and assigns a generated contract to `$$contract`, so the generated file can be
+  published from a shared package without importing the Next.js application.
+
+Set `contractMode` explicitly when the automatic project-boundary detection does not match your monorepo layout. The
+client restricts methods and infers request and status-specific response types from the same generated structure:
+
+```typescript
+import { createFetchTransport, createRouteClient } from "next-typed-paths/client";
+
+import { ROUTES } from "./generated/routes";
+
+const api = createRouteClient({ transport: createFetchTransport() });
+const response = await api.request(ROUTES.users.$userId(userId), "PATCH", {
+  body: { name: "Ada" },
+});
+
+if (response.status === 200) response.data.name;
+if (response.status === 404) response.data.message;
+```
+
+For a chainable version of the same contract-aware client, wrap the generated routes once:
+
+```typescript
+import { createFetchTransport, createRouteApi, createRouteClient } from "next-typed-paths/client";
+
+import { ROUTES } from "./generated/routes";
+
+const client = createRouteClient({ transport: createFetchTransport() });
+const routeApi = createRouteApi(ROUTES, client);
+
+const response = await routeApi.users.$userId(userId).PATCH({ body: { name: "Ada" } });
+```
+
+The client also accepts application-owned transports and query serializers. Zod response validation is performed by
+server helpers; the browser path runtime and base client do not import Zod.
+
+### Axios
+
+`next-typed-paths/axios` injects an application-owned Axios instance. Its defaults, adapters, authentication, and
+interceptors remain under application control:
+
+```typescript
+import axios from "axios";
+import { createAxiosRouteApi } from "next-typed-paths/axios";
+
+import { ROUTES } from "./generated/routes";
+
+const authenticatedApi = axios.create();
+authenticatedApi.interceptors.request.use(addAuthentication);
+
+export const routeApi = createAxiosRouteApi(ROUTES, authenticatedApi);
+
+export const updateUser = (userId: string, name: string) =>
+  routeApi.users
+    .$userId(userId)
+    .PATCH({ body: { name } })
+    .then((response) => response.data);
+```
+
+Query input is passed to Axios as `params`, JSON or form input as `data`, and per-request Axios options can be supplied
+under `config`. Axios's normal non-2xx rejection is retained, so errors can continue to flow through shared interceptors
+or query-library error handlers rather than being handled in every request. The resolved response type contains only
+declared 2xx statuses; `AxiosRouteError` and `AxiosRouteErrorData` are exported for applications that need to type a
+central error boundary.
+
+The generated method, params, query, body, and declared response types all come from the exact exported `routeContract`.
+The server remains the runtime trust boundary: it validates request input with Zod, while Axios trusts the server's
+response by default instead of downloading and running response schemas in the browser.
+
+### Paths, pages, and API contracts
+
+The generated route builder remains the smallest API and works for every discovered `page.tsx` and `route.ts`:
+
+```typescript
+router.push(ROUTES.settings.profile());
+const endpoint = ROUTES.api.users.$userId(userId);
+```
+
+Contracts are discovered only from `routeContract` exports in App Router `route.ts` files. A `page.tsx` route, or an API
+route without a contract, remains available through the path builder but does not gain HTTP methods on `createRouteApi`
+or `createAxiosRouteApi`. This keeps UI routes path-only while allowing contracted API routes to expose multiple methods
+from the same file.
+
+Common error schemas belong in an application-owned contracts module and can be reused by every route. The package does
+not prescribe an error shape because `{ error: string }`, validation details, and authentication errors are application
+conventions rather than Next.js route semantics.
+
+### Testing a canary
+
+Before the updated release workflow exists on the default branch, add the `publish-canary` label to a same-repository
+pull request. After it is merged, run **Release new NPM version** from GitHub Actions and select the branch to publish.
+Both paths verify the package, publish a unique `1.0.0-alpha.<run>.<attempt>.<sha>` version under the `alpha` dist-tag,
+and print the exact install command in the workflow summary. npm trusted publishing must authorize `release.yml` for
+`hugs7/next-typed-paths`; no long-lived npm token is required.
+
+For a pnpm workspace such as Pleo, install the printed version and regenerate routes:
+
+```bash
+pnpm add --workspace-root next-typed-paths@1.0.0-alpha.<run>.<attempt>.<sha>
+pnpm routes:generate
+```
+
 ## Configuration
 
 Create a `routes.config.ts` file in your project root:
@@ -53,6 +219,7 @@ const routeConfig: RouteConfig = {
   input: "./src/app/api",
   output: "./src/generated/routes.ts",
   watch: false,
+  contracts: true,
   paramTypeMap: {
     type: "RouteParamTypeMap",
     from: "../types/params",
@@ -123,6 +290,8 @@ export default configs;
     ```
   - Any parameter not defined in your type map will default to `string` type.
 - **`routesName`** (`string`, optional): The name for the generated routes constant and type. The constant will be UPPERCASED (e.g., `"routes"` becomes `const ROUTES`), and the type will be PascalCased (e.g., `type Routes`). Defaults to `"routes"`.
+- **`contracts`** (`boolean`, optional): Discover route contracts and embed their resolved request and response types in route nodes. Set to `false` for path-only output. Defaults to `true`.
+- **`contractMode`** (`"auto" | "internal" | "external"`, optional): Controls contract generation. `internal` assigns imported App Router contracts to each route node; `external` generates standalone Zod schemas and equivalent contracts; `auto` selects `internal` when the output is inside the Next.js project and `external` otherwise. Defaults to `auto`.
 - **`imports`** (`string[]`, optional): An array of import statements to include at the top of the generated routes file. Useful if your route builders need to reference custom types or utilities. For example, `["import { z } from 'zod';", "import type { User } from './types';"]`. Defaults to `[]`.
 
 ## CLI Commands
@@ -206,7 +375,17 @@ app/api/
             └── route.ts      → routes.api.posts.$postId(id).comments()
 ```
 
-It uses the directory structure to generate in realtime a typed schema of the available routes in your Next.Js application. You are still responsible for ensuring you use the route in the correct way (i.e. correct HTTP method and query params), however, the route and path params are typed for you.
+It uses the directory structure to generate a typed schema of the available routes in your Next.js application. Routes that export `routeContract` also carry method, request, and response types; routes without contracts retain the existing path-only behavior.
+
+## Migrating from v0.x
+
+1. Install Zod 4 alongside next-typed-paths: `npm install zod@^4`.
+2. Regenerate routes. Existing routes and the two-generic `RouteBuilderObject<Structure, ParamTypeMap>` API remain valid.
+3. Add `routeContract` exports incrementally. A contract's `params` schema becomes authoritative for that API route;
+   `paramTypeMap` remains the fallback for pages and uncontracted routes.
+4. Import contract helpers from `next-typed-paths/contracts`, the optional handler from `next-typed-paths/next`, and the
+   transport-independent client from `next-typed-paths/client`.
+5. Describe JSON wire values in response schemas. `body` and `formData` are intentionally mutually exclusive per method.
 
 ## Examples
 

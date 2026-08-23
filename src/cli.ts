@@ -20,8 +20,8 @@ import {
   PACKAGE_VERSION,
 } from "@/constants";
 import { mkdirIfNotExists } from "@/file";
-import { generateRouteFile } from "@/generator";
-import { generateRouteStructure } from "@/scanner";
+import { generateRouteFile, resolveContractMode } from "@/generator";
+import { generateRouteManifest, type RouteContractCache } from "@/scanner";
 import { RouteConfig } from "@/types";
 import { startWatcher } from "@/watcher";
 
@@ -35,15 +35,20 @@ program
 /**
  * Generate routes from directory structure
  */
-const generateRoutes = async (config: RouteConfig): Promise<void> => {
+const generateRoutes = async (config: RouteConfig, contractCache?: RouteContractCache): Promise<void> => {
   try {
     console.log("🔍 Scanning directory:", config.input);
 
     // Scan directory structure
-    const structure = await generateRouteStructure(config.input);
+    const { contracts, structure } = await generateRouteManifest(
+      config.input,
+      config.contracts !== false,
+      resolveContractMode(config) === "external",
+      contractCache,
+    );
 
     // Generate TypeScript code
-    const code = await generateRouteFile(structure, config);
+    const code = await generateRouteFile(structure, config, contracts);
 
     // Ensure output directory exists
     const outputDir = dirname(config.output);
@@ -89,14 +94,15 @@ program
             watch: options.watch,
             basePrefix: options.prefix,
           });
+          const contractCache: RouteContractCache | undefined = config.watch ? new Map() : undefined;
 
           // Generate initial routes
-          await generateRoutes(config);
+          await generateRoutes(config, contractCache);
 
           // Start watch mode if requested
           if (config.watch) {
             startWatcher(config, async () => {
-              await generateRoutes(config);
+              await generateRoutes(config, contractCache);
             });
           }
         } catch (error) {

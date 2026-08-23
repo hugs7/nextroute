@@ -6,6 +6,8 @@
  */
 
 import { createRouteBuilder, RouteBuilderObject } from "next-typed-paths/runtime";
+import { routeContract as routeContract0 } from "../app/api/(collections)/users/[userId]/route";
+import { routeContract as routeContract1 } from "../app/api/portable/route";
 import { type RouteParamTypeMap } from "../params";
 
 // Route structure definition
@@ -22,14 +24,34 @@ const routesStructure = {
       $userId: {
         $$route: true,
         $$param: "userId",
+        $$contract: routeContract0,
       },
       permissions: {
         $$route: true,
       },
     },
   },
+  docs: {
+    $slug: {
+      $$route: true,
+      $$param: "slug",
+      $$catchAll: true,
+      $$optionalCatchAll: true,
+    },
+  },
+  files: {
+    $path: {
+      $$route: true,
+      $$param: "path",
+      $$catchAll: true,
+    },
+  },
   "hyphened-route": {
     $$route: true,
+  },
+  portable: {
+    $$route: true,
+    $$contract: routeContract1,
   },
 } as const;
 

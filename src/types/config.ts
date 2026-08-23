@@ -5,6 +5,8 @@ export type ParamTypeMap = {
   from: string;
 };
 
+export type ContractMode = "auto" | "external" | "internal";
+
 /**
  * Configuration options for route generation
  */
@@ -32,6 +34,14 @@ export interface RouteConfig {
   paramTypeMap?: ParamTypeMap;
   /** Name for the generated routes constant (defaults to "routes") */
   routesName?: string;
+  /** Discover route contracts and include them in generated output (defaults to true) */
+  contracts?: boolean;
+  /**
+   * How generated contracts reference route schemas.
+   * Internal output imports route contracts; external output emits standalone Zod schemas.
+   * Auto detects whether output is inside the Next.js project (defaults to "auto").
+   */
+  contractMode?: ContractMode;
   /** Additional imports to include in generated file */
   imports?: string[];
 }
