@@ -20,6 +20,29 @@ export type RouteContractOf<Route> = Route extends {
   ? Contract
   : never;
 
+/** HTTP methods declared by a generated route. */
+export type RouteMethods<Route> = keyof RouteContractOf<Route> & keyof RouteContract;
+
+type RouteMethodAt<Route, Method extends RouteMethods<Route>> =
+  RouteContractOf<Route> extends Record<Method, infer Contract extends RouteMethodContract> ? Contract : never;
+
+/** Query input accepted by a generated route method. */
+export type RouteQuery<Route, Method extends RouteMethods<Route>> =
+  RouteRequest<RouteMethodAt<Route, Method>> extends { query: infer Query } ? Query : never;
+
+/** JSON body input accepted by a generated route method. */
+export type RouteBody<Route, Method extends RouteMethods<Route>> =
+  RouteRequest<RouteMethodAt<Route, Method>> extends { body: infer Body } ? Body : never;
+
+/** Form-data input accepted by a generated route method. */
+export type RouteFormData<Route, Method extends RouteMethods<Route>> =
+  RouteRequest<RouteMethodAt<Route, Method>> extends { formData: infer FormData } ? FormData : never;
+
+/** Status-discriminated responses returned by a generated route method. */
+export type RouteResponses<Route, Method extends RouteMethods<Route>> = import("../../contracts").RouteResponse<
+  RouteMethodAt<Route, Method>
+>;
+
 /**
  * Special keys used in route structure for metadata
  */

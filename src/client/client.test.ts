@@ -4,6 +4,7 @@ import { defineRouteContract, jsonResponse } from "../contracts";
 import { TypedRoute } from "../runtime";
 
 import { createRouteClient } from "./client";
+import { createFetchTransport } from "./fetch";
 import { RouteTransportRequest } from "./types";
 
 const routeContract = defineRouteContract({
@@ -54,5 +55,19 @@ describe("route client", () => {
     }
 
     expect(client).toBeDefined();
+  });
+
+  it("provides a fetch transport adapter", async () => {
+    const fetcher = vi.fn(async () => Response.json({ names: ["Ada"] }, { status: 200 }));
+    const transport = createFetchTransport(fetcher);
+
+    await expect(transport({ body: { name: "Ada" }, method: "POST", url: "/users" })).resolves.toEqual({
+      data: { names: ["Ada"] },
+      status: 200,
+    });
+    expect(fetcher).toHaveBeenCalledWith(
+      "/users",
+      expect.objectContaining({ body: JSON.stringify({ name: "Ada" }), method: "POST" }),
+    );
   });
 });

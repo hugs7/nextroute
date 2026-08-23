@@ -2,7 +2,9 @@ import { z } from "zod";
 
 import {
   JsonResponseDefinition,
+  JsonRouteResponseStatus,
   NoContentResponseDefinition,
+  NoContentRouteResponseStatus,
   RouteMethodContract,
   RouteResponseData,
   RouteResponseDefinition,
@@ -40,12 +42,12 @@ const getResponseDefinition = <Contract extends RouteMethodContract>(
  * @param data - Response payload matching that status's schema.
  * @returns A standard Web Response.
  */
-export const routeJson = <Contract extends RouteMethodContract, Status extends RouteResponseStatus<Contract>>(
+export const routeJson = <Contract extends RouteMethodContract, Status extends JsonRouteResponseStatus<Contract>>(
   contract: Contract,
   status: Status,
   data: RouteResponseData<Contract, Status>,
 ): Response => {
-  const definition = getResponseDefinition(contract, status);
+  const definition = getResponseDefinition(contract, status as RouteResponseStatus<Contract>);
   if (definition.contentType !== "application/json") {
     throw new Error(`Response status ${status} is not declared as JSON`);
   }
@@ -60,11 +62,14 @@ export const routeJson = <Contract extends RouteMethodContract, Status extends R
  * @param status - Declared no-content response status.
  * @returns A standard Web Response.
  */
-export const routeNoContent = <Contract extends RouteMethodContract, Status extends RouteResponseStatus<Contract>>(
+export const routeNoContent = <
+  Contract extends RouteMethodContract,
+  Status extends NoContentRouteResponseStatus<Contract>,
+>(
   contract: Contract,
   status: Status,
 ): Response => {
-  const definition = getResponseDefinition(contract, status);
+  const definition = getResponseDefinition(contract, status as RouteResponseStatus<Contract>);
   if (definition.contentType !== null) throw new Error(`Response status ${status} is not declared as no-content`);
   return new Response(null, { status });
 };

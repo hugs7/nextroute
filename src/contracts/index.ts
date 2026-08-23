@@ -5,7 +5,9 @@ export { jsonResponse, noContentResponse, routeJson, routeNoContent } from "./re
 export type {
   HttpMethod,
   JsonResponseDefinition,
+  JsonRouteResponseStatus,
   NoContentResponseDefinition,
+  NoContentRouteResponseStatus,
   RouteContract,
   RouteInput,
   RouteMethodContract,

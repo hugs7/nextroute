@@ -44,6 +44,18 @@ export type RouteRequest<Contract extends RouteMethodContract> = {
 
 export type RouteResponseStatus<Contract extends RouteMethodContract> = keyof Contract["responses"] & number;
 
+export type JsonRouteResponseStatus<Contract extends RouteMethodContract> = {
+  [Status in RouteResponseStatus<Contract>]: Contract["responses"][Status] extends JsonResponseDefinition
+    ? Status
+    : never;
+}[RouteResponseStatus<Contract>];
+
+export type NoContentRouteResponseStatus<Contract extends RouteMethodContract> = {
+  [Status in RouteResponseStatus<Contract>]: Contract["responses"][Status] extends NoContentResponseDefinition
+    ? Status
+    : never;
+}[RouteResponseStatus<Contract>];
+
 type ResponseData<Definition extends RouteResponseDefinition> =
   Definition extends JsonResponseDefinition<infer Schema> ? z.output<Schema> : undefined;
 

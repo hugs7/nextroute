@@ -18,6 +18,10 @@ const contract = defineRouteContract({
     body: z.object({ name: z.string() }),
     responses: { 204: noContentResponse() },
   },
+  PUT: {
+    formData: z.object({ tags: z.array(z.string()) }),
+    responses: { 204: noContentResponse() },
+  },
 });
 
 describe("route contracts", () => {
@@ -46,6 +50,20 @@ describe("route contracts", () => {
     expect(input).toEqual({ params: { userId: "123" }, query: { page: 2 } });
   });
 
+  it("parses repeated form-data fields", async () => {
+    const formData = new FormData();
+    formData.append("tags", "admin");
+    formData.append("tags", "owner");
+
+    const input = await parseRouteRequest(
+      contract.PUT,
+      new Request("https://example.com/users", { body: formData, method: "PUT" }),
+      { params: Promise.resolve({}) },
+    );
+
+    expect(input).toEqual({ formData: { tags: ["admin", "owner"] } });
+  });
+
   it("validates JSON and no-content responses", async () => {
     const json = routeJson(contract.GET, 200, { name: "Ada" });
     expect(json.status).toBe(200);
@@ -54,6 +72,13 @@ describe("route contracts", () => {
     const empty = routeNoContent(contract.POST, 204);
     expect(empty.status).toBe(204);
     expect(await empty.text()).toBe("");
+
+    if (false) {
+      // @ts-expect-error 204 is declared as no-content, not JSON.
+      routeJson(contract.POST, 204, undefined);
+      // @ts-expect-error 200 is declared as JSON, not no-content.
+      routeNoContent(contract.GET, 200);
+    }
   });
 
   it("rejects invalid response payloads", () => {
