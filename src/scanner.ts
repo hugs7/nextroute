@@ -9,7 +9,7 @@ import { dirname, join, parse, resolve } from "path";
 import { Node, Project, SourceFile } from "ts-morph";
 
 import { PAGE_FILE_NAME, ROUTE_FILE_EXTENSIONS, ROUTE_FILE_NAME } from "@/constants";
-import { ResolvedContractMethod, resolveRouteContractSchemas } from "@/contractType";
+import { ResolvedContractMethod, resolveRouteContractsSchemas } from "@/contractType";
 import { RouteNode } from "@/runtime";
 
 export type RouteContractReference = {
@@ -273,11 +273,21 @@ export const generateRouteManifest = async (
     project?.resolveSourceFileDependencies();
   }
 
+  const unresolvedContracts = pendingContracts.filter((contract) => !cachedMethods.has(contract.sourcePath));
+  const resolvedMethods = emitContractSchemas
+    ? new Map(
+        resolveRouteContractsSchemas(
+          project!,
+          unresolvedContracts.map((contract) => contract.sourceFile),
+        ).map((contract, index) => [unresolvedContracts[index]!.sourcePath, contract.methods]),
+      )
+    : new Map<string, ResolvedContractMethod[]>();
+
   const contracts = pendingContracts.map(({ sourceFile, ...contract }) => {
     try {
       const methods =
         cachedMethods.get(contract.sourcePath) ??
-        (emitContractSchemas ? resolveRouteContractSchemas(project!, sourceFile).methods : []);
+        (emitContractSchemas ? resolvedMethods.get(contract.sourcePath)! : []);
       if (emitContractSchemas && contractCache && !cachedMethods.has(contract.sourcePath)) {
         contractCache.set(contract.sourcePath, { methods, sourceText: sourceFile.getFullText() });
       }

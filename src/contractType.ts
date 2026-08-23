@@ -51,60 +51,84 @@ export type ResolvedRouteContract = {
   methods: ResolvedContractMethod[];
 };
 
-export const resolveRouteContractSchemas = (project: Project, routeSourceFile: SourceFile): ResolvedRouteContract => {
-  const contractSymbol = routeSourceFile.getExportSymbols().find((symbol) => symbol.getName() === "routeContract");
-  if (!contractSymbol) throw new Error(`${routeSourceFile.getFilePath()} does not export routeContract`);
+type PreparedContract = {
+  methods: {
+    method: string;
+    requestAlias: string;
+    responses: { alias: string; status: string }[];
+  }[];
+  sourceFile: SourceFile;
+};
 
-  const contractType = contractSymbol.getTypeAtLocation(routeSourceFile);
-  const methods = contractType.getProperties().filter((symbol) => HTTP_METHODS.has(symbol.getName()));
-  const helperPath = `${routeSourceFile.getFilePath()}.next-typed-paths.ts`;
-  const routeModule = getModuleSpecifier(helperPath, routeSourceFile.getFilePath());
+export const resolveRouteContractsSchemas = (
+  project: Project,
+  routeSourceFiles: SourceFile[],
+): ResolvedRouteContract[] => {
+  if (routeSourceFiles.length === 0) return [];
+
+  const helperPath = `${routeSourceFiles[0]!.getFilePath()}.next-typed-paths.ts`;
+  const imports: string[] = [];
   const aliases: string[] = [];
+  const preparedContracts: PreparedContract[] = [];
 
-  for (const method of methods) {
-    const methodName = method.getName();
-    aliases.push(`type Request_${methodName} = ResolvedRequest<typeof contract.${methodName}>;`);
-    const methodType = method.getTypeAtLocation(routeSourceFile);
-    const responses = methodType.getPropertyOrThrow("responses").getTypeAtLocation(routeSourceFile);
-    for (const response of responses.getProperties()) {
-      aliases.push(
-        `type Response_${methodName}_${response.getName()} = ResolvedResponse<typeof contract.${methodName}, ${response.getName()}>;`,
-      );
+  routeSourceFiles.forEach((routeSourceFile, contractIndex) => {
+    const contractSymbol = routeSourceFile.getExportSymbols().find((symbol) => symbol.getName() === "routeContract");
+    if (!contractSymbol) throw new Error(`${routeSourceFile.getFilePath()} does not export routeContract`);
+
+    const contractName = `contract_${contractIndex}`;
+    imports.push(
+      `import { routeContract as ${contractName} } from ${JSON.stringify(getModuleSpecifier(helperPath, routeSourceFile.getFilePath()))};`,
+    );
+    const contractType = contractSymbol.getTypeAtLocation(routeSourceFile);
+    const methods = contractType.getProperties().filter((symbol) => HTTP_METHODS.has(symbol.getName()));
+    const preparedMethods: PreparedContract["methods"] = [];
+    for (const method of methods) {
+      const methodName = method.getName();
+      const requestAlias = `Request_${contractIndex}_${methodName}`;
+      aliases.push(`type ${requestAlias} = ResolvedRequest<typeof ${contractName}.${methodName}>;`);
+      const methodType = method.getTypeAtLocation(routeSourceFile);
+      const responses = methodType.getPropertyOrThrow("responses").getTypeAtLocation(routeSourceFile);
+      const preparedResponses = responses.getProperties().map((response) => {
+        const status = response.getName();
+        const alias = `Response_${contractIndex}_${methodName}_${status}`;
+        aliases.push(`type ${alias} = ResolvedResponse<typeof ${contractName}.${methodName}, ${status}>;`);
+        return { alias, status };
+      });
+      preparedMethods.push({ method: methodName, requestAlias, responses: preparedResponses });
     }
-  }
+    preparedContracts.push({ methods: preparedMethods, sourceFile: routeSourceFile });
+  });
 
   const helperSource = project.createSourceFile(
     helperPath,
-    `import { routeContract as contract } from ${JSON.stringify(routeModule)};\n${TYPE_HELPERS}\n${aliases.join("\n")}`,
+    `${imports.join("\n")}\n${TYPE_HELPERS}\n${aliases.join("\n")}`,
     { overwrite: true },
   );
 
   try {
-    const resolvedMethods: ResolvedContractMethod[] = [];
-    methods.forEach((method) => {
-      const methodName = method.getName();
-      const methodType = method.getTypeAtLocation(routeSourceFile);
-      const responses = methodType.getPropertyOrThrow("responses").getTypeAtLocation(routeSourceFile);
-      const requestDeclaration = helperSource.getTypeAliasOrThrow(`Request_${methodName}`);
-      const resolvedResponses: ResolvedContractMethod["responses"] = [];
-      responses.getProperties().forEach((response) => {
-        const aliasName = `Response_${methodName}_${response.getName()}`;
-        const declaration = helperSource.getTypeAliasOrThrow(aliasName);
-        resolvedResponses.push({
-          schema: typeToZodSchema(declaration.getType(), declaration),
-          status: response.getName(),
-        });
-      });
-
-      resolvedMethods.push({
-        method: methodName,
-        requestSchema: typeToZodSchema(requestDeclaration.getType(), requestDeclaration),
-        responses: resolvedResponses,
-      });
+    return preparedContracts.map(({ methods, sourceFile }) => {
+      try {
+        return {
+          methods: methods.map(({ method, requestAlias, responses }) => {
+            const requestDeclaration = helperSource.getTypeAliasOrThrow(requestAlias);
+            return {
+              method,
+              requestSchema: typeToZodSchema(requestDeclaration.getType(), requestDeclaration),
+              responses: responses.map(({ alias, status }) => {
+                const declaration = helperSource.getTypeAliasOrThrow(alias);
+                return { schema: typeToZodSchema(declaration.getType(), declaration), status };
+              }),
+            };
+          }),
+        };
+      } catch (error) {
+        throw new Error(`Failed to resolve route contract in ${sourceFile.getFilePath()}`, { cause: error });
+      }
     });
-
-    return { methods: resolvedMethods };
   } finally {
     project.removeSourceFile(helperSource);
   }
 };
+
+export const resolveRouteContractSchemas = (project: Project, routeSourceFile: SourceFile): ResolvedRouteContract =>
+  resolveRouteContractsSchemas(project, [routeSourceFile])[0]!;
