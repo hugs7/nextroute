@@ -42,6 +42,8 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      "next-typed-paths/client": resolve(__dirname, "src/client/index.ts"),
+      "next-typed-paths/contracts": resolve(__dirname, "src/contracts/index.ts"),
       "next-typed-paths/runtime": resolve(__dirname, "src/runtime/index.ts"),
       "next-typed-paths": resolve(__dirname, "src/index.ts"),
     },
@@ -52,6 +54,7 @@ export default defineConfig({
       entry: {
         index: resolve(__dirname, "src/index.ts"),
         cli: resolve(__dirname, "src/cli.ts"),
+        "client/index": resolve(__dirname, "src/client/index.ts"),
         "contracts/index": resolve(__dirname, "src/contracts/index.ts"),
         "runtime/index": resolve(__dirname, "src/runtime/index.ts"),
       },
