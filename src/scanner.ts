@@ -4,6 +4,7 @@
 
 import { existsSync } from "fs";
 import { readdir } from "fs/promises";
+import { camelCase } from "lodash-es";
 import { dirname, join, resolve } from "path";
 import { Node, Project, SourceFile } from "ts-morph";
 
@@ -148,6 +149,11 @@ const formatParamName = (paramName: string): string => {
   return `$${camelCased}`;
 };
 
+const getBuilderKey = (routeKey: string): string => {
+  const dynamicPrefix = routeKey.startsWith("$") ? "$" : "";
+  return `${dynamicPrefix}${camelCase(routeKey.replace(/^\$/, "").replace(/[()]/g, ""))}`;
+};
+
 /**
  * Recursively scan a directory and build route structure
  */
@@ -155,6 +161,7 @@ const scanDirectoryNode = async (
   dirPath: string,
   segments: string[],
   contracts: RouteContractReference[],
+  paramNames: Set<string>,
 ): Promise<RouteNode> => {
   const node: RouteNode = {};
 
@@ -198,22 +205,38 @@ const scanDirectoryNode = async (
     return filtered;
   });
 
+  const builderKeys = new Set<string>();
   for (const entry of entries) {
     const dirName = entry.name;
 
     const entryPath = join(dirPath, dirName);
     const dynamicSegment = extractDynamicRouteSegment(dirName);
+    const routeKey = dynamicSegment ? formatParamName(dynamicSegment.paramName) : dirName;
+    const builderKey = getBuilderKey(routeKey);
+    if (builderKeys.has(builderKey)) {
+      throw new Error(`${dirPath} contains route segments that both generate the builder key ${builderKey}`);
+    }
+    builderKeys.add(builderKey);
+
     if (dynamicSegment) {
       // Dynamic segment [paramName]
-      const formattedName = formatParamName(dynamicSegment.paramName);
-      const childNode = await scanDirectoryNode(entryPath, [...segments, formattedName], contracts);
+      if (paramNames.has(dynamicSegment.paramName)) {
+        throw new Error(`${entryPath} duplicates the dynamic parameter ${dynamicSegment.paramName}`);
+      }
+
+      const childNode = await scanDirectoryNode(
+        entryPath,
+        [...segments, routeKey],
+        contracts,
+        new Set([...paramNames, dynamicSegment.paramName]),
+      );
       childNode.$$param = dynamicSegment.paramName;
       if (dynamicSegment.catchAll) childNode.$$catchAll = true;
       if (dynamicSegment.optional) childNode.$$optionalCatchAll = true;
-      node[formattedName] = childNode;
+      node[routeKey] = childNode;
     } else {
       // Static segment - keep original name
-      const childNode = await scanDirectoryNode(entryPath, [...segments, dirName], contracts);
+      const childNode = await scanDirectoryNode(entryPath, [...segments, dirName], contracts, paramNames);
       node[dirName] = childNode;
     }
   }
@@ -235,7 +258,7 @@ export const scanDirectory = async (dirPath: string): Promise<RouteNode> => {
 export const generateRouteManifest = async (inputDir: string): Promise<RouteManifest> => {
   const resolvedPath = resolve(inputDir);
   const contracts: RouteContractReference[] = [];
-  const structure = await scanDirectoryNode(resolvedPath, [], contracts);
+  const structure = await scanDirectoryNode(resolvedPath, [], contracts, new Set());
   return { contracts, structure };
 };
 

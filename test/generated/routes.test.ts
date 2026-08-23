@@ -1,4 +1,4 @@
-import { RouteContractOf, TypedRoute } from "next-typed-paths/runtime";
+import { RouteBody, RouteContractOf, RouteMethods, TypedRoute } from "next-typed-paths/runtime";
 import { routeContract } from "../app/api/(collections)/users/[userId]/route";
 
 import { ROUTES } from "./routes";
@@ -32,6 +32,8 @@ describe("Generated routes", () => {
 
     expectTypeOf<UserRoute>().toEqualTypeOf<TypedRoute<typeof routeContract>>();
     expectTypeOf<RouteContractOf<UserRoute>>().toEqualTypeOf<typeof routeContract>();
+    expectTypeOf<RouteMethods<UserRoute>>().toEqualTypeOf<"GET" | "POST">();
+    expectTypeOf<RouteBody<UserRoute, "POST">>().toEqualTypeOf<{ name: string }>();
     expectTypeOf<UserRouteParam>().toEqualTypeOf<"contract_user">();
   });
 });

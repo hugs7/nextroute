@@ -77,7 +77,7 @@ type ContractParamInput<Node, Param extends string> =
       }[keyof Contract]
     : never;
 
-type RouteParamType<T, Node, Param extends string, TMap> = [ContractParamInput<Node, Param>] extends [never]
+type RouteParamType<T, Node, Param extends string, TMap> = [ContractAt<Node>] extends [never]
   ? T extends { $$catchAll: true }
     ? GetParamType<Param, TMap>[]
     : GetParamType<Param, TMap>
