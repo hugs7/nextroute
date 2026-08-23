@@ -1,18 +1,28 @@
 name: Release new NPM version
 
 on:
+  pull_request:
+    types:
+      - labeled
   push:
     branches:
       - main
-
-concurrency:
-  group: release
-  cancel-in-progress: true
+  workflow_dispatch:
+    inputs:
+      base_version:
+        description: Stable version this canary precedes
+        required: true
+        default: "1.0.0"
+        type: string
 
 jobs:
   npm:
     name: NPM Release
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    concurrency:
+      group: npm-release
+      cancel-in-progress: true
     permissions:
       contents: write
       id-token: write
@@ -78,7 +88,6 @@ jobs:
         if: steps.version.outputs.should_publish == 'true'
         run: pnpm publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
 
       - name: Push changes
@@ -86,3 +95,60 @@ jobs:
         run: git push --follow-tags
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  canary:
+    name: NPM Canary
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'publish-canary'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: npm-canary-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout the repo
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify package
+        run: |
+          pnpm build
+          pnpm vitest run
+          pnpm test:e2e
+
+      - name: Set canary version
+        id: version
+        env:
+          BASE_VERSION: ${{ inputs.base_version || '1.0.0' }}
+        run: |
+          VERSION="${BASE_VERSION}-alpha.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}.${GITHUB_SHA::7}"
+          pnpm version "$VERSION" --no-git-tag-version
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Publish canary
+        run: pnpm publish --access public --tag alpha --no-git-checks
+        env:
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Add install instructions
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "## Published next-typed-paths@$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "pnpm add --workspace-root next-typed-paths@$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          echo "pnpm routes:generate" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

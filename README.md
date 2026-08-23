@@ -187,10 +187,11 @@ conventions rather than Next.js route semantics.
 
 ### Testing a canary
 
-Before the workflow exists on the default branch, add the `publish-canary` label to a same-repository pull request. After
-it is merged, run **Publish NPM canary** from GitHub Actions and select the branch to publish. Both paths verify the
-package, publish a unique `1.0.0-alpha.<run>.<attempt>.<sha>` version under the `alpha` dist-tag, and print the exact
-install command in the workflow summary. The repository's existing `NPM_TOKEN` secret is required.
+Before the updated release workflow exists on the default branch, add the `publish-canary` label to a same-repository
+pull request. After it is merged, run **Release new NPM version** from GitHub Actions and select the branch to publish.
+Both paths verify the package, publish a unique `1.0.0-alpha.<run>.<attempt>.<sha>` version under the `alpha` dist-tag,
+and print the exact install command in the workflow summary. npm trusted publishing must authorize `release.yml` for
+`hugs7/next-typed-paths`; no long-lived npm token is required.
 
 For a pnpm workspace such as Pleo, install the printed version and regenerate routes:
 
