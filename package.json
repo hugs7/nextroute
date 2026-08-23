@@ -38,6 +38,12 @@
       "require": "./dist/runtime/index.cjs",
       "default": "./dist/runtime/index.js"
     },
+    "./contracts": {
+      "types": "./dist/contracts/index.d.ts",
+      "import": "./dist/contracts/index.js",
+      "require": "./dist/contracts/index.cjs",
+      "default": "./dist/contracts/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

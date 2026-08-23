@@ -52,6 +52,7 @@ export default defineConfig({
       entry: {
         index: resolve(__dirname, "src/index.ts"),
         cli: resolve(__dirname, "src/cli.ts"),
+        "contracts/index": resolve(__dirname, "src/contracts/index.ts"),
         "runtime/index": resolve(__dirname, "src/runtime/index.ts"),
       },
       formats: ["es", "cjs"],
