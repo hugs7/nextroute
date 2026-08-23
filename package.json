@@ -74,7 +74,7 @@
     "tsc": "tsc -p tsconfig.lib.json",
     "build": "pnpm tsc && vite build",
     "prepublishOnly": "pnpm build",
-    "test": "vitest",
+    "test": "npx tsc -p tsconfig.spec.json --noEmit && vitest",
     "test:e2e": "pnpm --silent build && node dist/cli.js generate --config ./test/routes.config.ts",
     "test:e2e:watch": "pnpm test:e2e -- --watch"
   },
