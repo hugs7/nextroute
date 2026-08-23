@@ -42,6 +42,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
+      "next-typed-paths/axios": resolve(__dirname, "src/axios/index.ts"),
       "next-typed-paths/client": resolve(__dirname, "src/client/index.ts"),
       "next-typed-paths/contracts": resolve(__dirname, "src/contracts/index.ts"),
       "next-typed-paths/next": resolve(__dirname, "src/next/index.ts"),
@@ -55,6 +56,7 @@ export default defineConfig({
       entry: {
         index: resolve(__dirname, "src/index.ts"),
         cli: resolve(__dirname, "src/cli.ts"),
+        "axios/index": resolve(__dirname, "src/axios/index.ts"),
         "client/index": resolve(__dirname, "src/client/index.ts"),
         "contracts/index": resolve(__dirname, "src/contracts/index.ts"),
         "next/index": resolve(__dirname, "src/next/index.ts"),
@@ -66,6 +68,7 @@ export default defineConfig({
     minify: isCI,
     rollupOptions: {
       external: [
+        "axios",
         "chokidar",
         "commander",
         "cosmiconfig",

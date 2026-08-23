@@ -24,9 +24,9 @@ export type RouteClientOptions = {
   transport: RouteTransport;
 };
 
-type ContractMethod<Route> = keyof RouteContractOf<Route> & HttpMethod;
+export type RouteClientMethod<Route> = keyof RouteContractOf<Route> & HttpMethod;
 
-type MethodContract<Route, Method extends HttpMethod> =
+export type RouteMethodContractOf<Route, Method extends HttpMethod> =
   RouteContractOf<Route> extends Record<Method, infer Contract extends RouteMethodContract> ? Contract : never;
 
 type CommonRequestOptions = {
@@ -43,15 +43,15 @@ type RequiredKey<Value> = {
 export type RouteClientRequestOptions<Contract extends RouteMethodContract> = ContractRequestOptions<Contract> &
   CommonRequestOptions;
 
-type RequestArguments<Contract extends RouteMethodContract> =
+export type RouteClientRequestArguments<Contract extends RouteMethodContract> =
   RequiredKey<ContractRequestOptions<Contract>> extends never
     ? [options?: RouteClientRequestOptions<Contract>]
     : [options: RouteClientRequestOptions<Contract>];
 
 export type RouteClient = {
-  request<Route extends TypedRoute<RouteContract>, Method extends ContractMethod<Route>>(
+  request<Route extends TypedRoute<RouteContract>, Method extends RouteClientMethod<Route>>(
     route: Route,
     method: Method,
-    ...args: RequestArguments<MethodContract<Route, Method>>
-  ): Promise<RouteResponse<MethodContract<Route, Method>>>;
+    ...args: RouteClientRequestArguments<RouteMethodContractOf<Route, Method>>
+  ): Promise<RouteResponse<RouteMethodContractOf<Route, Method>>>;
 };

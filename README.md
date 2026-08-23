@@ -25,6 +25,12 @@ npm install next-typed-paths zod
 
 Even though the generation happens at build time, you will still need this package at runtime since it constructs a runtime object: your route structure. Hence ensure you install **without** the `-D` flag via npm.
 
+Axios support is optional. Install Axios only when using the `next-typed-paths/axios` entry point:
+
+```bash
+npm install axios
+```
+
 ## Quick Start
 
 ### 1. Generate Routes
@@ -112,8 +118,72 @@ if (response.status === 200) response.data.name;
 if (response.status === 404) response.data.message;
 ```
 
+For a chainable version of the same contract-aware client, wrap the generated routes once:
+
+```typescript
+import { createFetchTransport, createRouteApi, createRouteClient } from "next-typed-paths/client";
+
+import { ROUTES } from "./generated/routes";
+
+const client = createRouteClient({ transport: createFetchTransport() });
+const routeApi = createRouteApi(ROUTES, client);
+
+const response = await routeApi.users.$userId(userId).PATCH({ body: { name: "Ada" } });
+```
+
 The client also accepts application-owned transports and query serializers. Zod response validation is performed by
 server helpers; the browser path runtime and base client do not import Zod.
+
+### Axios
+
+`next-typed-paths/axios` injects an application-owned Axios instance. Its defaults, adapters, authentication, and
+interceptors remain under application control:
+
+```typescript
+import axios from "axios";
+import { createAxiosRouteApi } from "next-typed-paths/axios";
+
+import { ROUTES } from "./generated/routes";
+
+const authenticatedApi = axios.create();
+authenticatedApi.interceptors.request.use(addAuthentication);
+
+export const routeApi = createAxiosRouteApi(ROUTES, authenticatedApi);
+
+export const updateUser = (userId: string, name: string) =>
+  routeApi.users
+    .$userId(userId)
+    .PATCH({ body: { name } })
+    .then((response) => response.data);
+```
+
+Query input is passed to Axios as `params`, JSON or form input as `data`, and per-request Axios options can be supplied
+under `config`. Axios's normal non-2xx rejection is retained, so errors can continue to flow through shared interceptors
+or query-library error handlers rather than being handled in every request. The resolved response type contains only
+declared 2xx statuses; `AxiosRouteError` and `AxiosRouteErrorData` are exported for applications that need to type a
+central error boundary.
+
+The generated method, params, query, body, and declared response types all come from the exact exported `routeContract`.
+The server remains the runtime trust boundary: it validates request input with Zod, while Axios trusts the server's
+response by default instead of downloading and running response schemas in the browser.
+
+### Paths, pages, and API contracts
+
+The generated route builder remains the smallest API and works for every discovered `page.tsx` and `route.ts`:
+
+```typescript
+router.push(ROUTES.settings.profile());
+const endpoint = ROUTES.api.users.$userId(userId);
+```
+
+Contracts are discovered only from `routeContract` exports in App Router `route.ts` files. A `page.tsx` route, or an API
+route without a contract, remains available through the path builder but does not gain HTTP methods on `createRouteApi`
+or `createAxiosRouteApi`. This keeps UI routes path-only while allowing contracted API routes to expose multiple methods
+from the same file.
+
+Common error schemas belong in an application-owned contracts module and can be reused by every route. The package does
+not prescribe an error shape because `{ error: string }`, validation details, and authentication errors are application
+conventions rather than Next.js route semantics.
 
 ### Portable generated routes
 
@@ -122,7 +192,9 @@ declare the contract in a publishable shared module and re-export it:
 
 ```typescript
 // @acme/api-contracts
-export const userRouteContract = defineRouteContract({ /* methods */ });
+export const userRouteContract = defineRouteContract({
+  /* methods */
+});
 
 // app/api/users/[userId]/route.ts
 export { userRouteContract as routeContract } from "@acme/api-contracts";
