@@ -1,9 +1,9 @@
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
 
 import type {
+  AnyRouteContract,
+  AnyRouteMethodContract,
   HttpMethod,
-  RouteContract,
-  RouteMethodContract,
   RouteRequest,
   RouteResponseData,
   RouteResponseStatus,
@@ -11,7 +11,7 @@ import type {
 import type { TypedRoute } from "../runtime";
 import type { RouteClientMethod, RouteMethodContractOf } from "../client";
 
-type ContractRequestOptions<Contract extends RouteMethodContract> = Omit<RouteRequest<Contract>, "params">;
+type ContractRequestOptions<Contract extends AnyRouteMethodContract> = Omit<RouteRequest<Contract>, "params">;
 
 type RequiredKey<Value> = {
   [Key in keyof Value]-?: {} extends Pick<Value, Key> ? never : Key;
@@ -22,25 +22,25 @@ export type AxiosRouteRequestConfig = Omit<
   "data" | "method" | "params" | "url" | "validateStatus"
 >;
 
-export type AxiosRouteRequestOptions<Contract extends RouteMethodContract> = ContractRequestOptions<Contract> & {
+export type AxiosRouteRequestOptions<Contract extends AnyRouteMethodContract> = ContractRequestOptions<Contract> & {
   config?: AxiosRouteRequestConfig;
 };
 
-export type AxiosRouteRequestArguments<Contract extends RouteMethodContract> =
+export type AxiosRouteRequestArguments<Contract extends AnyRouteMethodContract> =
   RequiredKey<ContractRequestOptions<Contract>> extends never
     ? [options?: AxiosRouteRequestOptions<Contract>]
     : [options: AxiosRouteRequestOptions<Contract>];
 
-type SuccessfulRouteStatus<Contract extends RouteMethodContract> = {
+type SuccessfulRouteStatus<Contract extends AnyRouteMethodContract> = {
   [Status in RouteResponseStatus<Contract>]: `${Status}` extends `2${string}` ? Status : never;
 }[RouteResponseStatus<Contract>];
 
-type FailedRouteStatus<Contract extends RouteMethodContract> = Exclude<
+type FailedRouteStatus<Contract extends AnyRouteMethodContract> = Exclude<
   RouteResponseStatus<Contract>,
   SuccessfulRouteStatus<Contract>
 >;
 
-export type AxiosRouteResponse<Contract extends RouteMethodContract> = {
+export type AxiosRouteResponse<Contract extends AnyRouteMethodContract> = {
   [Status in SuccessfulRouteStatus<Contract>]: Omit<
     AxiosResponse<RouteResponseData<Contract, Status>, unknown>,
     "data" | "status"
@@ -50,7 +50,7 @@ export type AxiosRouteResponse<Contract extends RouteMethodContract> = {
   };
 }[SuccessfulRouteStatus<Contract>];
 
-export type AxiosRouteErrorData<Contract extends RouteMethodContract> = {
+export type AxiosRouteErrorData<Contract extends AnyRouteMethodContract> = {
   [Status in FailedRouteStatus<Contract>]: RouteResponseData<Contract, Status>;
 }[FailedRouteStatus<Contract>];
 
@@ -60,10 +60,10 @@ export type AxiosRouteError<Route, Method extends RouteClientMethod<Route>> = Ax
 >;
 
 type AxiosRouteEndpoint<Route> =
-  Route extends TypedRoute<infer Contract extends RouteContract>
+  Route extends TypedRoute<infer Contract extends AnyRouteContract>
     ? {
         [Method in keyof Contract & HttpMethod]: Contract[Method] extends infer MethodContract extends
-          RouteMethodContract
+          AnyRouteMethodContract
           ? (...args: AxiosRouteRequestArguments<MethodContract>) => Promise<AxiosRouteResponse<MethodContract>>
           : never;
       }

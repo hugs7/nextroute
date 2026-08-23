@@ -2,29 +2,29 @@
  * Type definitions for route builder
  */
 
-import type { RouteContract, RouteMethodContract, RouteRequest } from "../../contracts";
+import type { AnyRouteContract, AnyRouteMethodContract, RouteRequest } from "../../contracts";
 
 import { CamelCase, StripParentheses } from "./util";
 
 declare const routeContractBrand: unique symbol;
 
 /** A generated path carrying its route contract as type-only metadata. */
-export type TypedRoute<Contract extends RouteContract> = string & {
+export type TypedRoute<Contract extends AnyRouteContract> = string & {
   readonly [routeContractBrand]: Contract;
 };
 
 /** Extract the contract carried by a generated route path. */
 export type RouteContractOf<Route> = Route extends {
-  readonly [routeContractBrand]: infer Contract extends RouteContract;
+  readonly [routeContractBrand]: infer Contract extends AnyRouteContract;
 }
   ? Contract
   : never;
 
 /** HTTP methods declared by a generated route. */
-export type RouteMethods<Route> = keyof RouteContractOf<Route> & keyof RouteContract;
+export type RouteMethods<Route> = keyof RouteContractOf<Route> & keyof AnyRouteContract;
 
 type RouteMethodAt<Route, Method extends RouteMethods<Route>> =
-  RouteContractOf<Route> extends Record<Method, infer Contract extends RouteMethodContract> ? Contract : never;
+  RouteContractOf<Route> extends Record<Method, infer Contract extends AnyRouteMethodContract> ? Contract : never;
 
 /** Query input accepted by a generated route method. */
 export type RouteQuery<Route, Method extends RouteMethods<Route>> =
@@ -56,13 +56,15 @@ export type HasChildren<T> = keyof Omit<T, MetadataKey> extends never ? false : 
 // Get the type for a specific parameter from the type map
 export type GetParamType<P extends string, TMap = {}> = P extends keyof TMap ? TMap[P] : string;
 
-type ContractAt<Node> = Node extends { readonly $$contract: infer Contract extends RouteContract } ? Contract : never;
+type ContractAt<Node> = Node extends { readonly $$contract: infer Contract extends AnyRouteContract }
+  ? Contract
+  : never;
 
 type BuiltRoute<Node> = [ContractAt<Node>] extends [never] ? string : TypedRoute<ContractAt<Node>>;
 
 type ContractChild<Node, Key> = Key extends keyof Node ? Node[Key] : {};
 
-type MethodParamInput<Method, Param extends string> = Method extends RouteMethodContract
+type MethodParamInput<Method, Param extends string> = Method extends AnyRouteMethodContract
   ? RouteRequest<Method> extends { params: infer Params }
     ? Param extends keyof Params
       ? Params[Param]
@@ -71,7 +73,7 @@ type MethodParamInput<Method, Param extends string> = Method extends RouteMethod
   : never;
 
 type ContractParamInput<Node, Param extends string> =
-  ContractAt<Node> extends infer Contract extends RouteContract
+  ContractAt<Node> extends infer Contract extends AnyRouteContract
     ? {
         [Method in keyof Contract]: MethodParamInput<Contract[Method], Param>;
       }[keyof Contract]
@@ -88,7 +90,7 @@ type ParamArguments<T, Param> = T extends { $$optionalCatchAll: true }
   : [param: Param];
 
 // Type-safe route builder types
-export type RouteBuilder<T, TMap = {}, TContracts = {}> = T extends { $$param: infer P extends string }
+export type RouteBuilder<T, TMap = {}, TContracts = T> = T extends { $$param: infer P extends string }
   ? HasChildren<T> extends true
     ? (
         ...args: ParamArguments<T, RouteParamType<T, TContracts, P, TMap>>
@@ -107,7 +109,7 @@ export type RouteBuilder<T, TMap = {}, TContracts = {}> = T extends { $$param: i
       ? RouteBuilderObject<T, TMap, TContracts>
       : never;
 
-export type RouteBuilderObject<T, TMap = {}, TContracts = {}> = {
+export type RouteBuilderObject<T, TMap = {}, TContracts = T> = {
   [K in keyof T as K extends MetadataKey ? never : CamelCase<StripParentheses<K & string>>]: RouteBuilder<
     T[K],
     TMap,
@@ -120,6 +122,8 @@ export type RouteBuilderObject<T, TMap = {}, TContracts = {}> = {
 type RouteMetadata = {
   /** Whether the dynamic segment captures all remaining path segments */
   $$catchAll?: boolean;
+  /** Client-facing route contract metadata */
+  $$contract?: AnyRouteContract;
   /** Whether a catch-all segment may be omitted */
   $$optionalCatchAll?: boolean;
   /** Parameter name for dynamic segments */

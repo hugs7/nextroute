@@ -39,7 +39,9 @@ export const buildRoutePath = (segments: (string | number)[], basePrefix: string
  * @returns True if the key is a metadata key, false otherwise
  */
 export const isMetadataKey = (key: string): key is MetadataKey =>
-  (["$$catchAll", "$$optionalCatchAll", "$$param", "$$route"] satisfies MetadataKey[]).includes(key as MetadataKey);
+  (["$$catchAll", "$$contract", "$$optionalCatchAll", "$$param", "$$route"] satisfies MetadataKey[]).includes(
+    key as MetadataKey,
+  );
 
 /**
  * Strip parentheses from a string (used for route group names in Next.js)
@@ -67,7 +69,7 @@ const constructBuilderKey = (key: string): string => {
 /**
  * Recursively build route builder functions from route structure
  */
-export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<string, never>, TContracts = {}>(
+export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<string, never>, TContracts = T>(
   structure: T,
   basePath: (string | number)[] = [],
   basePrefix: string = "",

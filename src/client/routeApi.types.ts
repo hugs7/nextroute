@@ -1,13 +1,13 @@
-import type { HttpMethod, RouteContract, RouteMethodContract, RouteResponse } from "../contracts";
+import type { AnyRouteContract, AnyRouteMethodContract, HttpMethod, RouteResponse } from "../contracts";
 import type { TypedRoute } from "../runtime";
 
 import type { RouteClientRequestArguments } from "./types";
 
 type RouteEndpoint<Route> =
-  Route extends TypedRoute<infer Contract extends RouteContract>
+  Route extends TypedRoute<infer Contract extends AnyRouteContract>
     ? {
         [Method in keyof Contract & HttpMethod]: Contract[Method] extends infer MethodContract extends
-          RouteMethodContract
+          AnyRouteMethodContract
           ? (...args: RouteClientRequestArguments<MethodContract>) => Promise<RouteResponse<MethodContract>>
           : never;
       }

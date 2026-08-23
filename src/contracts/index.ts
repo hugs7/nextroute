@@ -3,6 +3,8 @@ export { parseRouteRequest } from "./request";
 export type { ContractRequest, ContractRouteContext } from "./request";
 export { jsonResponse, noContentResponse, routeJson, routeNoContent } from "./response";
 export type {
+  AnyRouteContract,
+  AnyRouteMethodContract,
   HttpMethod,
   JsonResponseDefinition,
   JsonRouteResponseStatus,
@@ -17,4 +19,6 @@ export type {
   RouteResponseData,
   RouteResponseDefinition,
   RouteResponseStatus,
+  ResolvedRouteContract,
+  ResolvedRouteMethodContract,
 } from "./types";

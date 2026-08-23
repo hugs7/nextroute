@@ -1,5 +1,5 @@
 import { RouteBody, RouteContractOf, RouteMethods, TypedRoute } from "next-typed-paths/runtime";
-import { routeContract } from "../app/api/(collections)/users/[userId]/route";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { ROUTES } from "./routes";
 
@@ -30,8 +30,19 @@ describe("Generated routes", () => {
     type UserRoute = ReturnType<typeof ROUTES.collections.users.$userId>;
     type UserRouteParam = Parameters<typeof ROUTES.collections.users.$userId>[0];
 
-    expectTypeOf<UserRoute>().toEqualTypeOf<TypedRoute<typeof routeContract>>();
-    expectTypeOf<RouteContractOf<UserRoute>>().toEqualTypeOf<typeof routeContract>();
+    type ExpectedContract = {
+      readonly GET: {
+        readonly request: { params: { userId: "contract_user" } };
+        readonly responses: { readonly 200: { message: string } };
+      };
+      readonly POST: {
+        readonly request: { body: { name: string }; params: { userId: "contract_user" } };
+        readonly responses: { readonly 201: { id: string; name: string } };
+      };
+    };
+
+    expectTypeOf<UserRoute>().toEqualTypeOf<TypedRoute<ExpectedContract>>();
+    expectTypeOf<RouteContractOf<UserRoute>>().toEqualTypeOf<ExpectedContract>();
     expectTypeOf<RouteMethods<UserRoute>>().toEqualTypeOf<"GET" | "POST">();
     expectTypeOf<RouteBody<UserRoute, "POST">>().toEqualTypeOf<{ name: string }>();
     expectTypeOf<UserRouteParam>().toEqualTypeOf<"contract_user">();

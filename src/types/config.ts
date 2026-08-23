@@ -32,8 +32,8 @@ export interface RouteConfig {
   paramTypeMap?: ParamTypeMap;
   /** Name for the generated routes constant (defaults to "routes") */
   routesName?: string;
-  /** Require contracts to be re-exported from portable shared modules */
-  portable?: boolean;
+  /** Discover route contracts and include them in generated output (defaults to true) */
+  contracts?: boolean;
   /** Additional imports to include in generated file */
   imports?: string[];
 }

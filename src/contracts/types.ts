@@ -29,6 +29,18 @@ export type RouteMethodContract = Omit<RouteRequestSchemas, "body" | "formData">
 
 export type RouteContract = Partial<Record<HttpMethod, RouteMethodContract>>;
 
+/** Request and response wire types emitted by route generation for client-only consumers. */
+export type ResolvedRouteMethodContract = {
+  request: Record<string, unknown>;
+  responses: Record<number, unknown>;
+};
+
+/** Method-keyed route contract containing no runtime schemas. */
+export type ResolvedRouteContract = Partial<Record<HttpMethod, ResolvedRouteMethodContract>>;
+
+export type AnyRouteMethodContract = RouteMethodContract | ResolvedRouteMethodContract;
+export type AnyRouteContract = RouteContract | ResolvedRouteContract;
+
 type RequestSchemaKey = keyof RouteRequestSchemas;
 
 type SchemaAt<Contract, Key extends RequestSchemaKey> =
@@ -58,15 +70,21 @@ export type RouteInput<Contract extends RouteMethodContract> = Simplify<
   }
 >;
 
-export type RouteRequest<Contract extends RouteMethodContract> = Simplify<
-  {
-    [Key in Exclude<ConfiguredRequestKey<Contract>, OptionalInputKey<Contract>>]: z.input<SchemaAt<Contract, Key>>;
-  } & {
-    [Key in OptionalInputKey<Contract>]?: z.input<SchemaAt<Contract, Key>>;
-  }
->;
+export type RouteRequest<Contract extends AnyRouteMethodContract> = Contract extends ResolvedRouteMethodContract
+  ? Contract["request"]
+  : Contract extends RouteMethodContract
+    ? Simplify<
+        {
+          [Key in Exclude<ConfiguredRequestKey<Contract>, OptionalInputKey<Contract>>]: z.input<
+            SchemaAt<Contract, Key>
+          >;
+        } & {
+          [Key in OptionalInputKey<Contract>]?: z.input<SchemaAt<Contract, Key>>;
+        }
+      >
+    : never;
 
-export type RouteResponseStatus<Contract extends RouteMethodContract> = keyof Contract["responses"] & number;
+export type RouteResponseStatus<Contract extends AnyRouteMethodContract> = keyof Contract["responses"] & number;
 
 export type JsonRouteResponseStatus<Contract extends RouteMethodContract> = {
   [Status in RouteResponseStatus<Contract>]: Contract["responses"][Status] extends JsonResponseDefinition
@@ -84,11 +102,15 @@ type ResponseData<Definition extends RouteResponseDefinition> =
   Definition extends JsonResponseDefinition<infer Schema> ? z.output<Schema> : undefined;
 
 export type RouteResponseData<
-  Contract extends RouteMethodContract,
+  Contract extends AnyRouteMethodContract,
   Status extends RouteResponseStatus<Contract>,
-> = ResponseData<Contract["responses"][Status]>;
+> = Contract extends ResolvedRouteMethodContract
+  ? Contract["responses"][Status]
+  : Contract extends RouteMethodContract
+    ? ResponseData<Contract["responses"][Status]>
+    : never;
 
-export type RouteResponse<Contract extends RouteMethodContract> = {
+export type RouteResponse<Contract extends AnyRouteMethodContract> = {
   [Status in RouteResponseStatus<Contract>]: {
     data: RouteResponseData<Contract, Status>;
     status: Status;

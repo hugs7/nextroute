@@ -22,6 +22,20 @@ const routesStructure = {
       $userId: {
         $$route: true,
         $$param: "userId",
+        $$contract: undefined as unknown as {
+          readonly GET: {
+            readonly request: { params: { userId: "contract_user" } };
+            readonly responses: {
+              readonly 200: { message: string };
+            };
+          };
+          readonly POST: {
+            readonly request: { body: { name: string }; params: { userId: "contract_user" } };
+            readonly responses: {
+              readonly 201: { id: string; name: string };
+            };
+          };
+        },
       },
       permissions: {
         $$route: true,
@@ -48,29 +62,19 @@ const routesStructure = {
   },
   portable: {
     $$route: true,
+    $$contract: undefined as unknown as {
+      readonly GET: {
+        readonly request: {};
+        readonly responses: {
+          readonly 200: { portable: true };
+        };
+      };
+    },
   },
 } as const;
 
-// Type-only route contract map
-type routesContracts = {
-  readonly "(collections)": {
-    readonly users: {
-      readonly $userId: {
-        readonly $$contract: (typeof import("../app/api/(collections)/users/[userId]/route"))["routeContract"];
-      };
-    };
-  };
-  readonly portable: {
-    readonly $$contract: (typeof import("../contracts/portable"))["portableRouteContract"];
-  };
-};
-
 // Type-safe route builder with parameter types
-export type Routes = RouteBuilderObject<typeof routesStructure, RouteParamTypeMap, routesContracts>;
+export type Routes = RouteBuilderObject<typeof routesStructure, RouteParamTypeMap>;
 
 // Route builder instance
-export const ROUTES = createRouteBuilder<typeof routesStructure, RouteParamTypeMap, routesContracts>(
-  routesStructure,
-  [],
-  "/api",
-);
+export const ROUTES = createRouteBuilder<typeof routesStructure, RouteParamTypeMap>(routesStructure, [], "/api");

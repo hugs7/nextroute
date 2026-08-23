@@ -1,4 +1,4 @@
-import type { HttpMethod, RouteContract, RouteMethodContract, RouteRequest, RouteResponse } from "../contracts";
+import type { AnyRouteContract, AnyRouteMethodContract, HttpMethod, RouteRequest, RouteResponse } from "../contracts";
 import type { RouteContractOf, TypedRoute } from "../runtime";
 
 export type RouteTransportRequest = {
@@ -27,29 +27,29 @@ export type RouteClientOptions = {
 export type RouteClientMethod<Route> = keyof RouteContractOf<Route> & HttpMethod;
 
 export type RouteMethodContractOf<Route, Method extends HttpMethod> =
-  RouteContractOf<Route> extends Record<Method, infer Contract extends RouteMethodContract> ? Contract : never;
+  RouteContractOf<Route> extends Record<Method, infer Contract extends AnyRouteMethodContract> ? Contract : never;
 
 type CommonRequestOptions = {
   headers?: Readonly<Record<string, string>>;
   signal?: unknown;
 };
 
-type ContractRequestOptions<Contract extends RouteMethodContract> = Omit<RouteRequest<Contract>, "params">;
+type ContractRequestOptions<Contract extends AnyRouteMethodContract> = Omit<RouteRequest<Contract>, "params">;
 
 type RequiredKey<Value> = {
   [Key in keyof Value]-?: {} extends Pick<Value, Key> ? never : Key;
 }[keyof Value];
 
-export type RouteClientRequestOptions<Contract extends RouteMethodContract> = ContractRequestOptions<Contract> &
+export type RouteClientRequestOptions<Contract extends AnyRouteMethodContract> = ContractRequestOptions<Contract> &
   CommonRequestOptions;
 
-export type RouteClientRequestArguments<Contract extends RouteMethodContract> =
+export type RouteClientRequestArguments<Contract extends AnyRouteMethodContract> =
   RequiredKey<ContractRequestOptions<Contract>> extends never
     ? [options?: RouteClientRequestOptions<Contract>]
     : [options: RouteClientRequestOptions<Contract>];
 
 export type RouteClient = {
-  request<Route extends TypedRoute<RouteContract>, Method extends RouteClientMethod<Route>>(
+  request<Route extends TypedRoute<AnyRouteContract>, Method extends RouteClientMethod<Route>>(
     route: Route,
     method: Method,
     ...args: RouteClientRequestArguments<RouteMethodContractOf<Route, Method>>

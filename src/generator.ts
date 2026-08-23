@@ -3,7 +3,6 @@
  */
 
 import { camelCase, snakeCase } from "lodash-es";
-import { dirname, isAbsolute, relative, resolve } from "path";
 import prettier from "prettier";
 import { Project, VariableDeclarationKind, WriterFunction, Writers } from "ts-morph";
 
@@ -18,9 +17,17 @@ import { RouteConfig } from "@/types";
 /**
  * Convert RouteNode structure to ts-morph object literal writer
  */
-const createObjectWriter = (structure: RouteNode): WriterFunction => {
+type ContractTree = {
+  contract?: RouteContractReference;
+  children: Record<string, ContractTree>;
+};
+
+const createObjectWriter = (structure: RouteNode, contracts: ContractTree): WriterFunction => {
   return Writers.object(
-    Object.entries(structure)
+    [
+      ...Object.entries(structure),
+      ...(contracts.contract ? [["$$contract", contracts.contract.typeText] as const] : []),
+    ]
       .sort(([a], [b]) => {
         // Sort to put metadata keys first
         const aOrder = isMetadataKey(a) ? 0 : 1;
@@ -33,10 +40,15 @@ const createObjectWriter = (structure: RouteNode): WriterFunction => {
           const needsQuotes = /[^a-zA-Z0-9_$]/.test(key);
           const safeKey = needsQuotes ? wrapDoubleQuotes(key) : key;
 
+          if (key === "$$contract") {
+            acc[safeKey] = `undefined as unknown as ${value}`;
+            return acc;
+          }
+
           switch (typeof value) {
             case "object":
               if (value !== null) {
-                acc[safeKey] = createObjectWriter(value);
+                acc[safeKey] = createObjectWriter(value, contracts.children[key] ?? { children: {} });
               }
               break;
             case "string":
@@ -56,11 +68,6 @@ const createObjectWriter = (structure: RouteNode): WriterFunction => {
   );
 };
 
-type ContractTree = {
-  contract?: RouteContractReference;
-  children: Record<string, ContractTree>;
-};
-
 const createContractTree = (contracts: RouteContractReference[]): ContractTree => {
   const root: ContractTree = { children: {} };
 
@@ -76,36 +83,6 @@ const createContractTree = (contracts: RouteContractReference[]): ContractTree =
   return root;
 };
 
-const getContractModuleSpecifier = (contract: RouteContractReference, outputPath: string): string => {
-  const reference = contract.moduleSpecifier ?? contract.filePath;
-  if (!isAbsolute(reference)) return reference;
-
-  const path = relative(dirname(resolve(outputPath)), reference)
-    .replace(/\\/g, "/")
-    .replace(/\.(?:js|jsx|ts|tsx)$/, "");
-  return path.startsWith(".") ? path : `./${path}`;
-};
-
-const createContractTypeWriter =
-  (tree: ContractTree, outputPath: string): WriterFunction =>
-  (writer) => {
-    writer.block(() => {
-      if (tree.contract) {
-        const moduleSpecifier = getContractModuleSpecifier(tree.contract, outputPath);
-        writer.writeLine(
-          `readonly $$contract: typeof import(${wrapDoubleQuotes(moduleSpecifier)})[${wrapDoubleQuotes(tree.contract.exportName)}];`,
-        );
-      }
-
-      for (const [key, child] of Object.entries(tree.children)) {
-        const safeKey = /[^a-zA-Z0-9_$]/.test(key) ? wrapDoubleQuotes(key) : key;
-        writer.write(`readonly ${safeKey}: `);
-        createContractTypeWriter(child, outputPath)(writer);
-        writer.writeLine(";");
-      }
-    });
-  };
-
 /**
  * Generate complete route file content using ts-morph
  */
@@ -114,19 +91,12 @@ export const generateRouteFile = async (
   config: RouteConfig,
   contracts: RouteContractReference[] = [],
 ): Promise<string> => {
-  const localContract = contracts.find((contract) => !contract.portable);
-  if (config.portable && localContract) {
-    throw new Error(
-      `Portable output cannot reference inline route contract: ${localContract.filePath}. Re-export routeContract from a shared publishable module.`,
-    );
-  }
-
+  const includedContracts = config.contracts === false ? [] : contracts;
   const basePrefix = config.basePrefix ?? "";
   const routesName = config.routesName ?? defaultConfig.routesName;
   const compiledRoutesName = snakeCase(routesName).toUpperCase();
   const typeName = pascalCase(routesName);
   const structureName = [camelCase(typeName), "Structure"].join("");
-  const contractsName = [camelCase(typeName), "Contracts"].join("");
   const paramTypeMapType = config.paramTypeMap ? config.paramTypeMap.type : "{}";
 
   // Create in-memory TypeScript project
@@ -162,17 +132,11 @@ export const generateRouteFile = async (
       {
         name: structureName,
         initializer: (writer) => {
-          createObjectWriter(structure)(writer);
+          createObjectWriter(structure, createContractTree(includedContracts))(writer);
           writer.write(" as const");
         },
       },
     ],
-  });
-
-  sourceFile.addTypeAlias({
-    leadingTrivia: "\n// Type-only route contract map\n",
-    name: contractsName,
-    type: createContractTypeWriter(createContractTree(contracts), config.output),
   });
 
   // Add type export
@@ -180,7 +144,7 @@ export const generateRouteFile = async (
     leadingTrivia: "\n// Type-safe route builder with parameter types\n",
     isExported: true,
     name: typeName,
-    type: `RouteBuilderObject<typeof ${structureName}, ${paramTypeMapType}, ${contractsName}>`,
+    type: `RouteBuilderObject<typeof ${structureName}, ${paramTypeMapType}>`,
   });
 
   // Add route builder instance
@@ -191,7 +155,7 @@ export const generateRouteFile = async (
     declarations: [
       {
         name: compiledRoutesName,
-        initializer: `createRouteBuilder<typeof ${structureName}, ${paramTypeMapType}, ${contractsName}>(${structureName}, [], "${basePrefix}")`,
+        initializer: `createRouteBuilder<typeof ${structureName}, ${paramTypeMapType}>(${structureName}, [], "${basePrefix}")`,
       },
     ],
   });

@@ -40,7 +40,7 @@ const generateRoutes = async (config: RouteConfig): Promise<void> => {
     console.log("🔍 Scanning directory:", config.input);
 
     // Scan directory structure
-    const { contracts, structure } = await generateRouteManifest(config.input);
+    const { contracts, structure } = await generateRouteManifest(config.input, config.contracts !== false);
 
     // Generate TypeScript code
     const code = await generateRouteFile(structure, config, contracts);

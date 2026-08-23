@@ -5,18 +5,16 @@
 import { existsSync } from "fs";
 import { readdir } from "fs/promises";
 import { camelCase } from "lodash-es";
-import { dirname, join, resolve } from "path";
+import { dirname, join, parse, resolve } from "path";
 import { Node, Project, SourceFile } from "ts-morph";
 
 import { PAGE_FILE_NAME, ROUTE_FILE_EXTENSIONS, ROUTE_FILE_NAME } from "@/constants";
+import { resolveRouteContractType } from "@/contractType";
 import { RouteNode } from "@/runtime";
 
 export type RouteContractReference = {
-  exportName: string;
-  filePath: string;
-  portable: boolean;
-  moduleSpecifier?: string;
   segments: string[];
+  typeText: string;
 };
 
 export type RouteManifest = {
@@ -41,58 +39,8 @@ const hasRouteFile = async (dirPath: string): Promise<boolean> => {
 
 const HTTP_METHODS = new Set(["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]);
 
-const getImportedContractReference = (
-  sourceFile: SourceFile,
-  localName: string,
-): Pick<RouteContractReference, "exportName" | "filePath" | "moduleSpecifier" | "portable"> | undefined => {
-  for (const importDeclaration of sourceFile.getImportDeclarations()) {
-    const imported = importDeclaration
-      .getNamedImports()
-      .find((specifier) => (specifier.getAliasNode()?.getText() ?? specifier.getName()) === localName);
-    if (!imported) continue;
-
-    const moduleSpecifier = importDeclaration.getModuleSpecifierValue();
-    return {
-      exportName: imported.getName(),
-      filePath: sourceFile.getFilePath(),
-      moduleSpecifier: moduleSpecifier.startsWith(".")
-        ? resolve(dirname(sourceFile.getFilePath()), moduleSpecifier)
-        : moduleSpecifier,
-      portable: true,
-    };
-  }
-};
-
-const getRouteContractReference = (
-  sourceFile: SourceFile,
-): Pick<RouteContractReference, "exportName" | "filePath" | "moduleSpecifier" | "portable"> | undefined => {
-  for (const exportDeclaration of sourceFile.getExportDeclarations()) {
-    const exported = exportDeclaration
-      .getNamedExports()
-      .find((specifier) => (specifier.getAliasNode()?.getText() ?? specifier.getName()) === "routeContract");
-    if (!exported) continue;
-
-    const exportName = exported.getName();
-    const moduleSpecifier = exportDeclaration.getModuleSpecifierValue();
-    if (moduleSpecifier) {
-      return {
-        exportName,
-        filePath: sourceFile.getFilePath(),
-        moduleSpecifier: moduleSpecifier.startsWith(".")
-          ? resolve(dirname(sourceFile.getFilePath()), moduleSpecifier)
-          : moduleSpecifier,
-        portable: true,
-      };
-    }
-
-    const importedReference = getImportedContractReference(sourceFile, exportName);
-    if (importedReference) return importedReference;
-  }
-
-  if (sourceFile.getExportSymbols().some((symbol) => symbol.getName() === "routeContract")) {
-    return { exportName: "routeContract", filePath: sourceFile.getFilePath(), portable: false };
-  }
-};
+const hasRouteContract = (sourceFile: SourceFile): boolean =>
+  sourceFile.getExportSymbols().some((symbol) => symbol.getName() === "routeContract");
 
 const getContractMethods = (sourceFile: SourceFile): string[] => {
   const declaration = sourceFile.getExportedDeclarations().get("routeContract")?.[0];
@@ -162,6 +110,8 @@ const scanDirectoryNode = async (
   segments: string[],
   contracts: RouteContractReference[],
   paramNames: Set<string>,
+  discoverContracts: boolean,
+  project?: Project,
 ): Promise<RouteNode> => {
   const node: RouteNode = {};
 
@@ -174,14 +124,17 @@ const scanDirectoryNode = async (
     node.$$route = true;
   }
 
-  const routeFile = findRouteFile(dirPath, ROUTE_FILE_NAME);
+  const routeFile = discoverContracts ? findRouteFile(dirPath, ROUTE_FILE_NAME) : undefined;
   if (routeFile) {
-    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    if (!project) throw new Error("Contract discovery requires a TypeScript project");
     const sourceFile = project.addSourceFileAtPath(routeFile);
-    const contract = getRouteContractReference(sourceFile);
-    if (contract) {
+    project.resolveSourceFileDependencies();
+    if (hasRouteContract(sourceFile)) {
       validateContractMethods(sourceFile);
-      contracts.push({ ...contract, segments });
+      contracts.push({
+        segments,
+        typeText: resolveRouteContractType(project, sourceFile),
+      });
     }
   }
 
@@ -229,6 +182,8 @@ const scanDirectoryNode = async (
         [...segments, routeKey],
         contracts,
         new Set([...paramNames, dynamicSegment.paramName]),
+        discoverContracts,
+        project,
       );
       childNode.$$param = dynamicSegment.paramName;
       if (dynamicSegment.catchAll) childNode.$$catchAll = true;
@@ -236,7 +191,14 @@ const scanDirectoryNode = async (
       node[routeKey] = childNode;
     } else {
       // Static segment - keep original name
-      const childNode = await scanDirectoryNode(entryPath, [...segments, dirName], contracts, paramNames);
+      const childNode = await scanDirectoryNode(
+        entryPath,
+        [...segments, dirName],
+        contracts,
+        paramNames,
+        discoverContracts,
+        project,
+      );
       node[dirName] = childNode;
     }
   }
@@ -248,17 +210,28 @@ const scanDirectoryNode = async (
  * Recursively scan a directory and build route structure.
  */
 export const scanDirectory = async (dirPath: string): Promise<RouteNode> => {
-  const { structure } = await generateRouteManifest(dirPath);
+  const { structure } = await generateRouteManifest(dirPath, false);
   return structure;
 };
 
 /**
  * Scan route structure and statically discover exported route contracts.
  */
-export const generateRouteManifest = async (inputDir: string): Promise<RouteManifest> => {
+export const generateRouteManifest = async (inputDir: string, discoverContracts = true): Promise<RouteManifest> => {
   const resolvedPath = resolve(inputDir);
   const contracts: RouteContractReference[] = [];
-  const structure = await scanDirectoryNode(resolvedPath, [], contracts, new Set());
+  let directory = resolvedPath;
+  while (!existsSync(join(directory, "tsconfig.json")) && directory !== parse(directory).root) {
+    directory = dirname(directory);
+  }
+  const tsConfigFilePath = join(directory, "tsconfig.json");
+  const project = discoverContracts
+    ? new Project({
+        ...(existsSync(tsConfigFilePath) ? { tsConfigFilePath } : {}),
+        skipAddingFilesFromTsConfig: true,
+      })
+    : undefined;
+  const structure = await scanDirectoryNode(resolvedPath, [], contracts, new Set(), discoverContracts, project);
   return { contracts, structure };
 };
 

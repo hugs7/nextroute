@@ -101,8 +101,10 @@ export const PATCH = createSiteValidatedRoute(routeContract.PATCH)(async ({ inpu
 `parseRouteRequest(routeContract.PATCH, request, context)` is available when a custom composer needs a lower-level
 integration. `routeJson` and `routeNoContent` enforce declared status/content-type combinations.
 
-After generation, the path carries the whole route contract as type-only metadata. The client restricts methods and
-infers request and status-specific response types without adding contract data to the browser bundle:
+After generation, each contracted route node carries self-contained request and response types. The generated output
+does not import route files or Zod, so it can be published from a shared models package without depending on the Next.js
+application. The client restricts methods and infers request and status-specific response types without adding contract
+data to the browser bundle:
 
 ```typescript
 import { createFetchTransport, createRouteClient } from "next-typed-paths/client";
@@ -200,22 +202,6 @@ pnpm add --workspace-root next-typed-paths@1.0.0-alpha.<run>.<attempt>.<sha>
 pnpm routes:generate
 ```
 
-### Portable generated routes
-
-Local output can reference an inline contract in `route.ts`. For generated files published from another package,
-declare the contract in a publishable shared module and re-export it:
-
-```typescript
-// @acme/api-contracts
-export const userRouteContract = defineRouteContract({/* methods */});
-
-// app/api/users/[userId]/route.ts
-export { userRouteContract as routeContract } from "@acme/api-contracts";
-```
-
-Set `portable: true` in `RouteConfig`. Generation then emits the shared module reference and fails clearly if any
-contract is still inline in an application route file.
-
 ## Configuration
 
 Create a `routes.config.ts` file in your project root:
@@ -227,7 +213,7 @@ const routeConfig: RouteConfig = {
   input: "./src/app/api",
   output: "./src/generated/routes.ts",
   watch: false,
-  portable: false,
+  contracts: true,
   paramTypeMap: {
     type: "RouteParamTypeMap",
     from: "../types/params",
@@ -298,7 +284,7 @@ export default configs;
     ```
   - Any parameter not defined in your type map will default to `string` type.
 - **`routesName`** (`string`, optional): The name for the generated routes constant and type. The constant will be UPPERCASED (e.g., `"routes"` becomes `const ROUTES`), and the type will be PascalCased (e.g., `type Routes`). Defaults to `"routes"`.
-- **`portable`** (`boolean`, optional): Require every route contract to be re-exported from a shared module suitable for published generated output. Defaults to `false`.
+- **`contracts`** (`boolean`, optional): Discover route contracts and embed their resolved request and response types in route nodes. Set to `false` for path-only output. Defaults to `true`.
 - **`imports`** (`string[]`, optional): An array of import statements to include at the top of the generated routes file. Useful if your route builders need to reference custom types or utilities. For example, `["import { z } from 'zod';", "import type { User } from './types';"]`. Defaults to `[]`.
 
 ## CLI Commands
