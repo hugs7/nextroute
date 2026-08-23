@@ -1,3 +1,6 @@
+import { RouteContractOf, TypedRoute } from "next-typed-paths/runtime";
+import { routeContract } from "../app/api/(collections)/users/[userId]/route";
+
 import { ROUTES } from "./routes";
 
 describe("Generated routes", () => {
@@ -11,11 +14,20 @@ describe("Generated routes", () => {
 
     expect(typeof ROUTES.collections.users).toBe("object");
     expect(typeof ROUTES.collections.users.$userId).toBe("function");
-    expect(ROUTES.collections.users.$userId("user_abc")).toBe("/api/users/user_abc");
+    expect(ROUTES.collections.users.$userId("contract_user")).toBe("/api/users/contract_user");
     expect(ROUTES.collections.users.$()).toBe("/api/users");
   });
 
   it("should not include private routes", () => {
     expect(ROUTES.hyphenedRoute).not.toHaveProperty("_private");
+  });
+
+  it("carries its contract and uses contract param input", () => {
+    type UserRoute = ReturnType<typeof ROUTES.collections.users.$userId>;
+    type UserRouteParam = Parameters<typeof ROUTES.collections.users.$userId>[0];
+
+    expectTypeOf<UserRoute>().toEqualTypeOf<TypedRoute<typeof routeContract>>();
+    expectTypeOf<RouteContractOf<UserRoute>>().toEqualTypeOf<typeof routeContract>();
+    expectTypeOf<UserRouteParam>().toEqualTypeOf<"contract_user">();
   });
 });

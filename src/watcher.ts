@@ -56,6 +56,12 @@ export const startWatcher = (config: RouteConfig, onRegenerate: RegenerateCallba
         scheduleRegenerate();
       }
     })
+    .on("change", (filePath) => {
+      if (basename(filePath).startsWith(`${ROUTE_FILE_NAME}.`)) {
+        console.log(`✏️  Changed route file: ${relative(inputPath, filePath)}`);
+        scheduleRegenerate();
+      }
+    })
     .on("addDir", (dirPath) => {
       console.log(`📁 New directory: ${relative(inputPath, dirPath)}`);
       scheduleRegenerate();

@@ -67,11 +67,11 @@ const constructBuilderKey = (key: string): string => {
 /**
  * Recursively build route builder functions from route structure
  */
-export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<string, never>>(
+export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<string, never>, TContracts = {}>(
   structure: T,
   basePath: (string | number)[] = [],
   basePrefix: string = "",
-): RouteBuilderObject<T, TMap> => {
+): RouteBuilderObject<T, TMap, TContracts> => {
   const builder: Record<string, any> = {};
 
   for (const [key, value] of Object.entries(structure)) {
@@ -125,5 +125,5 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
     }
   }
 
-  return builder as RouteBuilderObject<T, TMap>;
+  return builder as RouteBuilderObject<T, TMap, TContracts>;
 };

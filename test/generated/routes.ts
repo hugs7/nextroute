@@ -33,8 +33,23 @@ const routesStructure = {
   },
 } as const;
 
+// Type-only route contract map
+type routesContracts = {
+  readonly "(collections)": {
+    readonly users: {
+      readonly $userId: {
+        readonly $$contract: typeof import("../app/api/(collections)/users/[userId]/route").routeContract;
+      };
+    };
+  };
+};
+
 // Type-safe route builder with parameter types
-export type Routes = RouteBuilderObject<typeof routesStructure, RouteParamTypeMap>;
+export type Routes = RouteBuilderObject<typeof routesStructure, RouteParamTypeMap, routesContracts>;
 
 // Route builder instance
-export const ROUTES = createRouteBuilder<typeof routesStructure, RouteParamTypeMap>(routesStructure, [], "/api");
+export const ROUTES = createRouteBuilder<typeof routesStructure, RouteParamTypeMap, routesContracts>(
+  routesStructure,
+  [],
+  "/api",
+);

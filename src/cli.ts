@@ -21,7 +21,7 @@ import {
 } from "@/constants";
 import { mkdirIfNotExists } from "@/file";
 import { generateRouteFile } from "@/generator";
-import { generateRouteStructure } from "@/scanner";
+import { generateRouteManifest } from "@/scanner";
 import { RouteConfig } from "@/types";
 import { startWatcher } from "@/watcher";
 
@@ -40,10 +40,10 @@ const generateRoutes = async (config: RouteConfig): Promise<void> => {
     console.log("🔍 Scanning directory:", config.input);
 
     // Scan directory structure
-    const structure = await generateRouteStructure(config.input);
+    const { contracts, structure } = await generateRouteManifest(config.input);
 
     // Generate TypeScript code
-    const code = await generateRouteFile(structure, config);
+    const code = await generateRouteFile(structure, config, contracts);
 
     // Ensure output directory exists
     const outputDir = dirname(config.output);

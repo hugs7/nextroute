@@ -3,26 +3,42 @@
  */
 
 import { existsSync } from "fs";
-import { readdir } from "fs/promises";
+import { readFile, readdir } from "fs/promises";
 import { join, resolve } from "path";
+import { Project } from "ts-morph";
 
 import { PAGE_FILE_NAME, ROUTE_FILE_EXTENSIONS, ROUTE_FILE_NAME } from "@/constants";
 import { RouteNode } from "@/runtime";
 
+export type RouteContractReference = {
+  filePath: string;
+  segments: string[];
+};
+
+export type RouteManifest = {
+  contracts: RouteContractReference[];
+  structure: RouteNode;
+};
+
 /**
  * Check if a directory contains a route.ts or page.ts file
  */
+const findRouteFile = (dirPath: string, fileName: string): string | undefined => {
+  for (const extension of ROUTE_FILE_EXTENSIONS) {
+    const filePath = join(dirPath, `${fileName}${extension}`);
+    if (existsSync(filePath)) return filePath;
+  }
+};
+
 const hasRouteFile = async (dirPath: string): Promise<boolean> => {
   const fileNames = [ROUTE_FILE_NAME, PAGE_FILE_NAME];
-  const checks = await Promise.all(
-    fileNames.flatMap((fileName) =>
-      ROUTE_FILE_EXTENSIONS.map(async (ext) => {
-        const filePath = join(dirPath, `${fileName}${ext}`);
-        return existsSync(filePath);
-      }),
-    ),
-  );
-  return checks.some((exists) => exists);
+  return fileNames.some((fileName) => findRouteFile(dirPath, fileName));
+};
+
+const exportsRouteContract = async (filePath: string): Promise<boolean> => {
+  const project = new Project({ useInMemoryFileSystem: true });
+  const sourceFile = project.createSourceFile(filePath, await readFile(filePath, "utf-8"));
+  return sourceFile.getExportSymbols().some((symbol) => symbol.getName() === "routeContract");
 };
 
 /**
@@ -46,7 +62,11 @@ const formatParamName = (paramName: string): string => {
 /**
  * Recursively scan a directory and build route structure
  */
-export const scanDirectory = async (dirPath: string, basePath: string = ""): Promise<RouteNode> => {
+const scanDirectoryNode = async (
+  dirPath: string,
+  segments: string[],
+  contracts: RouteContractReference[],
+): Promise<RouteNode> => {
   const node: RouteNode = {};
 
   if (!existsSync(dirPath)) {
@@ -56,6 +76,11 @@ export const scanDirectory = async (dirPath: string, basePath: string = ""): Pro
   // Check if this directory itself has a route
   if (await hasRouteFile(dirPath)) {
     node.$$route = true;
+  }
+
+  const routeFile = findRouteFile(dirPath, ROUTE_FILE_NAME);
+  if (routeFile && (await exportsRouteContract(routeFile))) {
+    contracts.push({ filePath: routeFile, segments });
   }
 
   // Read directory contents
@@ -82,17 +107,16 @@ export const scanDirectory = async (dirPath: string, basePath: string = ""): Pro
     const dirName = entry.name;
 
     const entryPath = join(dirPath, dirName);
-    const relativePath = [basePath, dirName].join("/");
     const paramName = extractDynamicRouteSlug(dirName);
     if (paramName) {
       // Dynamic segment [paramName]
       const formattedName = formatParamName(paramName);
-      const childNode = await scanDirectory(entryPath, relativePath);
+      const childNode = await scanDirectoryNode(entryPath, [...segments, formattedName], contracts);
       childNode.$$param = paramName;
       node[formattedName] = childNode;
     } else {
       // Static segment - keep original name
-      const childNode = await scanDirectory(entryPath, relativePath);
+      const childNode = await scanDirectoryNode(entryPath, [...segments, dirName], contracts);
       node[dirName] = childNode;
     }
   }
@@ -101,9 +125,26 @@ export const scanDirectory = async (dirPath: string, basePath: string = ""): Pro
 };
 
 /**
+ * Recursively scan a directory and build route structure.
+ */
+export const scanDirectory = async (dirPath: string): Promise<RouteNode> => {
+  const { structure } = await generateRouteManifest(dirPath);
+  return structure;
+};
+
+/**
+ * Scan route structure and statically discover exported route contracts.
+ */
+export const generateRouteManifest = async (inputDir: string): Promise<RouteManifest> => {
+  const resolvedPath = resolve(inputDir);
+  const contracts: RouteContractReference[] = [];
+  const structure = await scanDirectoryNode(resolvedPath, [], contracts);
+  return { contracts, structure };
+};
+
+/**
  * Scan Next.js app directory and generate route structure
  */
 export const generateRouteStructure = async (inputDir: string): Promise<RouteNode> => {
-  const resolvedPath = resolve(inputDir);
-  return scanDirectory(resolvedPath);
+  return scanDirectory(inputDir);
 };
