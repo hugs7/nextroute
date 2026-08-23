@@ -22,6 +22,11 @@ const contract = defineRouteContract({
     formData: z.object({ tags: z.array(z.string()) }),
     responses: { 204: noContentResponse() },
   },
+  PATCH: {
+    body: z.object({ name: z.string() }).optional(),
+    query: z.object({ search: z.string() }).optional(),
+    responses: { 204: noContentResponse() },
+  },
 });
 
 describe("route contracts", () => {
@@ -62,6 +67,14 @@ describe("route contracts", () => {
     );
 
     expect(input).toEqual({ formData: { tags: ["admin", "owner"] } });
+  });
+
+  it("preserves omitted optional request sources", async () => {
+    const input = await parseRouteRequest(contract.PATCH, new Request("https://example.com/users"), {
+      params: Promise.resolve({}),
+    });
+
+    expect(input).toEqual({ body: undefined, query: undefined });
   });
 
   it("validates JSON and no-content responses", async () => {

@@ -87,7 +87,7 @@ The adapter is optional. Contract request fields deliberately sit at the method-
 middleware composer can consume the exact same value without next-typed-paths depending on that middleware:
 
 ```typescript
-export const PATCH = createSiteValidatedRoute(routeContract.PATCH)(async ({ input }) => {
+export const PATCH = createSiteValidatedRoute(routeContract.PATCH, async ({ input }) => {
   // input.params and input.body are inferred Zod outputs
 });
 ```

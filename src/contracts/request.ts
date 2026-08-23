@@ -1,3 +1,5 @@
+import type { z } from "zod";
+
 import { RouteInput, RouteMethodContract, RouteRequestSchemas } from "./types";
 
 type MultiValueInput<Value> = {
@@ -6,6 +8,7 @@ type MultiValueInput<Value> = {
 };
 
 export type ContractRequest = {
+  body?: unknown;
   formData(): Promise<MultiValueInput<unknown>>;
   json(): Promise<unknown>;
   url: string;
@@ -26,6 +29,11 @@ const getMultiValueInput = <Value>(source: MultiValueInput<Value>): Record<strin
   return input;
 };
 
+const omitEmptyOptionalInput = (schema: z.ZodType, value: unknown): unknown => {
+  const isEmptyRecord = typeof value === "object" && value !== null && Object.keys(value).length === 0;
+  return isEmptyRecord && schema.safeParse(undefined).success ? undefined : value;
+};
+
 /**
  * Parses request input using a method contract without imposing a middleware stack.
  *
@@ -41,10 +49,17 @@ export const parseRouteRequest = async <Contract extends RouteMethodContract>(
 ): Promise<RouteInput<Contract>> => {
   const values: Partial<Record<keyof RouteRequestSchemas, unknown>> = {};
 
-  if (contract.params) values.params = await context.params;
-  if (contract.query) values.query = getMultiValueInput(new URL(request.url).searchParams);
-  if (contract.body) values.body = await request.json();
-  if (contract.formData) values.formData = getMultiValueInput(await request.formData());
+  if (contract.params) values.params = omitEmptyOptionalInput(contract.params, await context.params);
+  if (contract.query) {
+    values.query = omitEmptyOptionalInput(contract.query, getMultiValueInput(new URL(request.url).searchParams));
+  }
+  if (contract.body) {
+    values.body = request.body == null && contract.body.safeParse(undefined).success ? undefined : await request.json();
+  }
+  if (contract.formData) {
+    const formData = request.body == null ? {} : getMultiValueInput(await request.formData());
+    values.formData = omitEmptyOptionalInput(contract.formData, formData);
+  }
 
   const input: Partial<Record<keyof RouteRequestSchemas, unknown>> = {};
   for (const source of ["params", "query", "body", "formData"] as const) {
