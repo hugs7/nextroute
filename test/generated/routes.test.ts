@@ -1,5 +1,4 @@
 import { RouteBody, RouteContractOf, RouteMethods, RouteResponses, TypedRoute } from "next-typed-paths/runtime";
-import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type { routeContract as userRouteContract } from "../app/api/(collections)/users/[userId]/route";
 import { EXTERNAL_ROUTES } from "./external-routes";
