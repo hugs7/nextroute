@@ -107,9 +107,6 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
           }
 
           return children;
-        } else if (hasRoute) {
-          // Leaf route with parameter
-          return buildRoutePath(paramPath, basePrefix);
         }
 
         return buildRoutePath(paramPath, basePrefix);
