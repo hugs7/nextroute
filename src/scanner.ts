@@ -44,9 +44,21 @@ const exportsRouteContract = async (filePath: string): Promise<boolean> => {
 /**
  * Extract route slug name from Next.js dynamic segment [slug]
  */
-const extractDynamicRouteSlug = (segment: string): string | undefined => {
-  const match = segment.match(/^\[(.+)\]$/);
-  return match?.[1];
+type DynamicRouteSegment = {
+  catchAll: boolean;
+  optional: boolean;
+  paramName: string;
+};
+
+const extractDynamicRouteSegment = (segment: string): DynamicRouteSegment | undefined => {
+  const optionalCatchAll = segment.match(/^\[\[\.\.\.(.+)\]\]$/);
+  if (optionalCatchAll?.[1]) return { catchAll: true, optional: true, paramName: optionalCatchAll[1] };
+
+  const catchAll = segment.match(/^\[\.\.\.(.+)\]$/);
+  if (catchAll?.[1]) return { catchAll: true, optional: false, paramName: catchAll[1] };
+
+  const dynamic = segment.match(/^\[(.+)\]$/);
+  if (dynamic?.[1]) return { catchAll: false, optional: false, paramName: dynamic[1] };
 };
 
 /**
@@ -107,12 +119,14 @@ const scanDirectoryNode = async (
     const dirName = entry.name;
 
     const entryPath = join(dirPath, dirName);
-    const paramName = extractDynamicRouteSlug(dirName);
-    if (paramName) {
+    const dynamicSegment = extractDynamicRouteSegment(dirName);
+    if (dynamicSegment) {
       // Dynamic segment [paramName]
-      const formattedName = formatParamName(paramName);
+      const formattedName = formatParamName(dynamicSegment.paramName);
       const childNode = await scanDirectoryNode(entryPath, [...segments, formattedName], contracts);
-      childNode.$$param = paramName;
+      childNode.$$param = dynamicSegment.paramName;
+      if (dynamicSegment.catchAll) childNode.$$catchAll = true;
+      if (dynamicSegment.optional) childNode.$$optionalCatchAll = true;
       node[formattedName] = childNode;
     } else {
       // Static segment - keep original name

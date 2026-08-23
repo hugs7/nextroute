@@ -28,6 +28,21 @@ const routesStructure = {
       },
     },
   },
+  docs: {
+    $slug: {
+      $$route: true,
+      $$param: "slug",
+      $$catchAll: true,
+      $$optionalCatchAll: true,
+    },
+  },
+  files: {
+    $path: {
+      $$route: true,
+      $$param: "path",
+      $$catchAll: true,
+    },
+  },
   "hyphened-route": {
     $$route: true,
   },

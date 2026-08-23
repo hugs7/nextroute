@@ -16,6 +16,10 @@ describe("Generated routes", () => {
     expect(typeof ROUTES.collections.users.$userId).toBe("function");
     expect(ROUTES.collections.users.$userId("contract_user")).toBe("/api/users/contract_user");
     expect(ROUTES.collections.users.$()).toBe("/api/users");
+
+    expect(ROUTES.files.$path(["reports", "2026"])).toBe("/api/files/reports/2026");
+    expect(ROUTES.docs.$slug()).toBe("/api/docs");
+    expect(ROUTES.docs.$slug(["guides", "setup"])).toBe("/api/docs/guides/setup");
   });
 
   it("should not include private routes", () => {

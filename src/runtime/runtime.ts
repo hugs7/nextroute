@@ -39,7 +39,7 @@ export const buildRoutePath = (segments: (string | number)[], basePrefix: string
  * @returns True if the key is a metadata key, false otherwise
  */
 export const isMetadataKey = (key: string): key is MetadataKey =>
-  (["$$param", "$$route"] satisfies MetadataKey[]).includes(key as MetadataKey);
+  (["$$catchAll", "$$optionalCatchAll", "$$param", "$$route"] satisfies MetadataKey[]).includes(key as MetadataKey);
 
 /**
  * Strip parentheses from a string (used for route group names in Next.js)
@@ -87,6 +87,7 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
 
     const hasRoute = value.$$route === true;
     const hasParam = ("$$param" satisfies MetadataKey) in value;
+    const isCatchAll = value.$$catchAll === true;
 
     // Check if there are children (non-metadata keys)
     const childKeys = Object.keys(value).filter((k) => !isMetadataKey(k));
@@ -94,8 +95,15 @@ export const createRouteBuilder = <T extends Record<string, any>, TMap = Record<
 
     if (hasParam) {
       // This level has a parameter
-      builder[builderKey] = (param: string | number) => {
-        const paramPath = [...currentPath.slice(0, -1), param];
+      builder[builderKey] = (param?: string | number | (string | number)[]) => {
+        const paramSegments: (string | number)[] = isCatchAll
+          ? Array.isArray(param)
+            ? param
+            : param === undefined
+              ? []
+              : [param]
+          : [param as string | number];
+        const paramPath = [...currentPath.slice(0, -1), ...paramSegments];
 
         if (hasChildren) {
           // Has children, build them with the parameter in the path

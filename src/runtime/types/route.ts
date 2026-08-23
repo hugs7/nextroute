@@ -54,20 +54,28 @@ type ContractParamInput<Node, Param extends string> =
       }[keyof Contract]
     : never;
 
-type RouteParamType<Node, Param extends string, TMap> = [ContractParamInput<Node, Param>] extends [never]
-  ? GetParamType<Param, TMap>
+type RouteParamType<T, Node, Param extends string, TMap> = [ContractParamInput<Node, Param>] extends [never]
+  ? T extends { $$catchAll: true }
+    ? GetParamType<Param, TMap>[]
+    : GetParamType<Param, TMap>
   : ContractParamInput<Node, Param>;
+
+type ParamArguments<T, Param> = T extends { $$optionalCatchAll: true }
+  ? [param?: Exclude<Param, undefined>]
+  : [param: Param];
 
 // Type-safe route builder types
 export type RouteBuilder<T, TMap = {}, TContracts = {}> = T extends { $$param: infer P extends string }
   ? HasChildren<T> extends true
     ? (
-        param: RouteParamType<TContracts, P, TMap>,
+        ...args: ParamArguments<T, RouteParamType<T, TContracts, P, TMap>>
       ) => RouteBuilderObject<OmitParamMetaKey<T>, TMap, TContracts> &
         (T extends { $$route: true } ? { $: () => BuiltRoute<TContracts> } : {})
     : T extends { $$route: true }
-      ? (param: RouteParamType<TContracts, P, TMap>) => BuiltRoute<TContracts>
-      : (param: RouteParamType<TContracts, P, TMap>) => RouteBuilderObject<OmitParamMetaKey<T>, TMap, TContracts>
+      ? (...args: ParamArguments<T, RouteParamType<T, TContracts, P, TMap>>) => BuiltRoute<TContracts>
+      : (
+          ...args: ParamArguments<T, RouteParamType<T, TContracts, P, TMap>>
+        ) => RouteBuilderObject<OmitParamMetaKey<T>, TMap, TContracts>
   : T extends { $$route: true }
     ? HasChildren<T> extends true
       ? RouteBuilderObject<T, TMap, TContracts> & { $: () => BuiltRoute<TContracts> }
@@ -87,6 +95,10 @@ export type RouteBuilderObject<T, TMap = {}, TContracts = {}> = {
 // Meta keys are double-dollar prefixed to avoid collisions with
 // potential route slugs with the same name.
 type RouteMetadata = {
+  /** Whether the dynamic segment captures all remaining path segments */
+  $$catchAll?: boolean;
+  /** Whether a catch-all segment may be omitted */
+  $$optionalCatchAll?: boolean;
   /** Parameter name for dynamic segments */
   $$param?: string;
   /** Whether this node has a route file */
