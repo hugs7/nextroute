@@ -74,6 +74,11 @@ describe("Axios route API", () => {
       void api.api.appointments.byId.$appointmentId("appointment-1").checkout.POST();
       // @ts-expect-error amount must match the route's body schema.
       void api.api.appointments.byId.$appointmentId("appointment-1").checkout.POST({ body: { amount: "42" } });
+      void api.api.appointments.byId.$appointmentId("appointment-1").checkout.POST({
+        body: { amount: 42 },
+        // @ts-expect-error Contracted requests must retain non-2xx rejection.
+        config: { validateStatus: () => true },
+      });
       // @ts-expect-error Pages without route contracts do not gain HTTP methods.
       void api.login.GET();
     }

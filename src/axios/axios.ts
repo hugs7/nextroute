@@ -31,6 +31,7 @@ export const createAxiosRouteApi = <Routes extends object>(
       method,
       params: query,
       url: route,
+      validateStatus: (status) => status >= 200 && status < 300,
     });
   };
 

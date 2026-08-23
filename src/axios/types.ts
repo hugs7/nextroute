@@ -17,7 +17,10 @@ type RequiredKey<Value> = {
   [Key in keyof Value]-?: {} extends Pick<Value, Key> ? never : Key;
 }[keyof Value];
 
-export type AxiosRouteRequestConfig = Omit<AxiosRequestConfig<unknown>, "data" | "method" | "params" | "url">;
+export type AxiosRouteRequestConfig = Omit<
+  AxiosRequestConfig<unknown>,
+  "data" | "method" | "params" | "url" | "validateStatus"
+>;
 
 export type AxiosRouteRequestOptions<Contract extends RouteMethodContract> = ContractRequestOptions<Contract> & {
   config?: AxiosRouteRequestConfig;
