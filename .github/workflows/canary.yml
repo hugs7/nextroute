@@ -1,6 +1,9 @@
 name: Publish NPM canary
 
 on:
+  pull_request:
+    types:
+      - labeled
   workflow_dispatch:
     inputs:
       base_version:
@@ -16,6 +19,7 @@ concurrency:
 jobs:
   npm:
     name: NPM Canary
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'publish-canary'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -46,7 +50,7 @@ jobs:
       - name: Set canary version
         id: version
         env:
-          BASE_VERSION: ${{ inputs.base_version }}
+          BASE_VERSION: ${{ inputs.base_version || '1.0.0' }}
         run: |
           VERSION="${BASE_VERSION}-alpha.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}.${GITHUB_SHA::7}"
           pnpm version "$VERSION" --no-git-tag-version
