@@ -22,11 +22,14 @@ describe("contract generation", () => {
 
     expect(code).toContain('import { z } from "zod"');
     expect(code).toContain("const routeContract0GetResponse200Schema = z.string()");
-    expect(code).toContain("readonly 200: z.infer<typeof routeContract0GetResponse200Schema>");
+    expect(code).toContain(
+      "$$contract: {\n      GET: { request: routeContract0GetRequestSchema, responses: { 200: routeContract0GetResponse200Schema } },\n    }",
+    );
+    expect(code).toContain("RouteBuilderObject<typeof routesStructure, {}>");
     expect(code).not.toContain("undefined as unknown as");
   });
 
-  it("references route contracts with type-only imports for internal output", async () => {
+  it("assigns imported route contracts to internal route structures", async () => {
     const code = await generateRouteFile(
       { users: { $$route: true } },
       { contractMode: "internal", input: "/project/src/app/api", output: "/project/src/generated/routes.ts" },
@@ -39,8 +42,9 @@ describe("contract generation", () => {
       ],
     );
 
-    expect(code).toContain('import type { routeContract as routeContract0 } from "../app/api/users/route"');
-    expect(code).toContain("readonly $$contract: typeof routeContract0");
+    expect(code).toContain('import { routeContract as routeContract0 } from "../app/api/users/route"');
+    expect(code).toContain("$$contract: routeContract0");
+    expect(code).toContain("RouteBuilderObject<typeof routesStructure, {}>");
     expect(code).not.toContain("undefined as unknown as");
   });
 

@@ -33,6 +33,10 @@ const externalRoutesStructure = {
       $userId: {
         $$route: true,
         $$param: "userId",
+        $$contract: {
+          GET: { request: routeContract0GetRequestSchema, responses: { 200: routeContract0GetResponse200Schema } },
+          POST: { request: routeContract0PostRequestSchema, responses: { 201: routeContract0PostResponse201Schema } },
+        },
       },
       permissions: {
         $$route: true,
@@ -59,42 +63,17 @@ const externalRoutesStructure = {
   },
   portable: {
     $$route: true,
+    $$contract: {
+      GET: { request: routeContract1GetRequestSchema, responses: { 200: routeContract1GetResponse200Schema } },
+    },
   },
 } as const;
 
-// Type-only route contracts
-type externalRoutesContracts = {
-  readonly "(collections)": {
-    readonly users: {
-      readonly $userId: {
-        readonly $$contract: {
-          readonly GET: {
-            readonly request: z.infer<typeof routeContract0GetRequestSchema>;
-            readonly responses: { readonly 200: z.infer<typeof routeContract0GetResponse200Schema> };
-          };
-          readonly POST: {
-            readonly request: z.infer<typeof routeContract0PostRequestSchema>;
-            readonly responses: { readonly 201: z.infer<typeof routeContract0PostResponse201Schema> };
-          };
-        };
-      };
-    };
-  };
-  readonly portable: {
-    readonly $$contract: {
-      readonly GET: {
-        readonly request: z.infer<typeof routeContract1GetRequestSchema>;
-        readonly responses: { readonly 200: z.infer<typeof routeContract1GetResponse200Schema> };
-      };
-    };
-  };
-};
-
 // Type-safe route builder with parameter types
-export type ExternalRoutes = RouteBuilderObject<typeof externalRoutesStructure, {}, externalRoutesContracts>;
+export type ExternalRoutes = RouteBuilderObject<typeof externalRoutesStructure, {}>;
 
 // Route builder instance
-export const EXTERNAL_ROUTES = createRouteBuilder<typeof externalRoutesStructure, {}, externalRoutesContracts>(
+export const EXTERNAL_ROUTES = createRouteBuilder<typeof externalRoutesStructure, {}>(
   externalRoutesStructure,
   [],
   "/api",

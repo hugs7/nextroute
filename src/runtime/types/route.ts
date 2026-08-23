@@ -62,8 +62,6 @@ type ContractAt<Node> = Node extends { readonly $$contract: infer Contract exten
 
 type BuiltRoute<Node> = [ContractAt<Node>] extends [never] ? string : TypedRoute<ContractAt<Node>>;
 
-type ContractChild<Node, Key> = Key extends keyof Node ? Node[Key] : {};
-
 type MethodParamInput<Method, Param extends string> = Method extends AnyRouteMethodContract
   ? RouteRequest<Method> extends { params: infer Params }
     ? Param extends keyof Params
@@ -90,31 +88,25 @@ type ParamArguments<T, Param> = T extends { $$optionalCatchAll: true }
   : [param: Param];
 
 // Type-safe route builder types
-export type RouteBuilder<T, TMap = {}, TContracts = T> = T extends { $$param: infer P extends string }
+export type RouteBuilder<T, TMap = {}> = T extends { $$param: infer P extends string }
   ? HasChildren<T> extends true
     ? (
-        ...args: ParamArguments<T, RouteParamType<T, TContracts, P, TMap>>
-      ) => RouteBuilderObject<OmitParamMetaKey<T>, TMap, TContracts> &
-        (T extends { $$route: true } ? { $: () => BuiltRoute<TContracts> } : {})
+        ...args: ParamArguments<T, RouteParamType<T, T, P, TMap>>
+      ) => RouteBuilderObject<OmitParamMetaKey<T>, TMap> &
+        (T extends { $$route: true } ? { $: () => BuiltRoute<T> } : {})
     : T extends { $$route: true }
-      ? (...args: ParamArguments<T, RouteParamType<T, TContracts, P, TMap>>) => BuiltRoute<TContracts>
-      : (
-          ...args: ParamArguments<T, RouteParamType<T, TContracts, P, TMap>>
-        ) => RouteBuilderObject<OmitParamMetaKey<T>, TMap, TContracts>
+      ? (...args: ParamArguments<T, RouteParamType<T, T, P, TMap>>) => BuiltRoute<T>
+      : (...args: ParamArguments<T, RouteParamType<T, T, P, TMap>>) => RouteBuilderObject<OmitParamMetaKey<T>, TMap>
   : T extends { $$route: true }
     ? HasChildren<T> extends true
-      ? RouteBuilderObject<T, TMap, TContracts> & { $: () => BuiltRoute<TContracts> }
-      : () => BuiltRoute<TContracts>
+      ? RouteBuilderObject<T, TMap> & { $: () => BuiltRoute<T> }
+      : () => BuiltRoute<T>
     : T extends object
-      ? RouteBuilderObject<T, TMap, TContracts>
+      ? RouteBuilderObject<T, TMap>
       : never;
 
-export type RouteBuilderObject<T, TMap = {}, TContracts = T> = {
-  [K in keyof T as K extends MetadataKey ? never : CamelCase<StripParentheses<K & string>>]: RouteBuilder<
-    T[K],
-    TMap,
-    ContractChild<TContracts, K>
-  >;
+export type RouteBuilderObject<T, TMap = {}> = {
+  [K in keyof T as K extends MetadataKey ? never : CamelCase<StripParentheses<K & string>>]: RouteBuilder<T[K], TMap>;
 };
 
 // Meta keys are double-dollar prefixed to avoid collisions with

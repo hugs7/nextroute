@@ -19,13 +19,16 @@ import { ContractMode, RouteConfig } from "@/types";
  * Convert RouteNode structure to ts-morph object literal writer
  */
 type ContractTree = {
-  contractType?: string;
+  contractValue?: string;
   children: Record<string, ContractTree>;
 };
 
-const createObjectWriter = (structure: RouteNode): WriterFunction => {
+const createObjectWriter = (structure: RouteNode, contracts: ContractTree): WriterFunction => {
   return Writers.object(
-    Object.entries(structure)
+    [
+      ...Object.entries(structure),
+      ...(contracts.contractValue ? [["$$contract", contracts.contractValue] as const] : []),
+    ]
       .sort(([a], [b]) => {
         // Sort to put metadata keys first
         const aOrder = isMetadataKey(a) ? 0 : 1;
@@ -38,10 +41,15 @@ const createObjectWriter = (structure: RouteNode): WriterFunction => {
           const needsQuotes = /[^a-zA-Z0-9_$]/.test(key);
           const safeKey = needsQuotes ? wrapDoubleQuotes(key) : key;
 
+          if (key === "$$contract") {
+            acc[safeKey] = value;
+            return acc;
+          }
+
           switch (typeof value) {
             case "object":
               if (value !== null) {
-                acc[safeKey] = createObjectWriter(value);
+                acc[safeKey] = createObjectWriter(value, contracts.children[key] ?? { children: {} });
               }
               break;
             case "string":
@@ -61,7 +69,7 @@ const createObjectWriter = (structure: RouteNode): WriterFunction => {
   );
 };
 
-const createContractTree = (contracts: { contractType: string; segments: string[] }[]): ContractTree => {
+const createContractTree = (contracts: { contractValue: string; segments: string[] }[]): ContractTree => {
   const root: ContractTree = { children: {} };
 
   for (const contract of contracts) {
@@ -70,20 +78,10 @@ const createContractTree = (contracts: { contractType: string; segments: string[
       node.children[segment] ??= { children: {} };
       node = node.children[segment];
     }
-    node.contractType = contract.contractType;
+    node.contractValue = contract.contractValue;
   }
 
   return root;
-};
-
-const typeProperty = (key: string): string => (/^[A-Za-z_$][\w$]*$/.test(key) ? key : JSON.stringify(key));
-
-const contractTreeType = (tree: ContractTree): string => {
-  const fields = Object.entries(tree.children).map(
-    ([key, child]) => `readonly ${typeProperty(key)}: ${contractTreeType(child)};`,
-  );
-  if (tree.contractType) fields.unshift(`readonly $$contract: ${tree.contractType};`);
-  return `{ ${fields.join(" ")} }`;
 };
 
 const moduleSpecifier = (outputPath: string, sourcePath: string): string => {
@@ -125,7 +123,6 @@ export const generateRouteFile = async (
   const compiledRoutesName = snakeCase(routesName).toUpperCase();
   const typeName = pascalCase(routesName);
   const structureName = [camelCase(typeName), "Structure"].join("");
-  const contractsName = [camelCase(typeName), "Contracts"].join("");
   const paramTypeMapType = config.paramTypeMap ? config.paramTypeMap.type : "{}";
   const contractMode = resolveContractMode(config);
 
@@ -139,7 +136,7 @@ export const generateRouteFile = async (
     namedImports: ["createRouteBuilder", "RouteBuilderObject"],
   });
 
-  const contractTypes: { contractType: string; segments: string[] }[] = [];
+  const contractValues: { contractValue: string; segments: string[] }[] = [];
   if (includedContracts.length > 0 && contractMode === "external") {
     sourceFile.addImportDeclaration({ moduleSpecifier: "zod", namedImports: ["z"] });
   }
@@ -148,31 +145,30 @@ export const generateRouteFile = async (
     if (contractMode === "internal") {
       const alias = `routeContract${contractIndex}`;
       sourceFile.addImportDeclaration({
-        isTypeOnly: true,
         moduleSpecifier: moduleSpecifier(config.output, contract.sourcePath),
         namedImports: [{ alias, name: "routeContract" }],
       });
-      contractTypes.push({ contractType: `typeof ${alias}`, segments: contract.segments });
+      contractValues.push({ contractValue: alias, segments: contract.segments });
       return;
     }
 
-    const methodTypes = contract.methods.map(({ method, requestSchema, responses }) => {
+    const methods = contract.methods.map(({ method, requestSchema, responses }) => {
       const requestName = schemaName(contractIndex, method, "Request");
       sourceFile.addVariableStatement({
         declarationKind: VariableDeclarationKind.Const,
         declarations: [{ initializer: requestSchema, name: requestName }],
       });
-      const responseTypes = responses.map(({ schema, status }) => {
+      const responseSchemas = responses.map(({ schema, status }) => {
         const responseName = schemaName(contractIndex, method, `Response${status}`);
         sourceFile.addVariableStatement({
           declarationKind: VariableDeclarationKind.Const,
           declarations: [{ initializer: schema, name: responseName }],
         });
-        return `readonly ${status}: z.infer<typeof ${responseName}>;`;
+        return `${status}: ${responseName}`;
       });
-      return `readonly ${method}: { readonly request: z.infer<typeof ${requestName}>; readonly responses: { ${responseTypes.join(" ")} }; };`;
+      return `${method}: { request: ${requestName}, responses: { ${responseSchemas.join(", ")} } }`;
     });
-    contractTypes.push({ contractType: `{ ${methodTypes.join(" ")} }`, segments: contract.segments });
+    contractValues.push({ contractValue: `{ ${methods.join(", ")} }`, segments: contract.segments });
   });
 
   // Add paramTypeMap import if configured
@@ -198,17 +194,11 @@ export const generateRouteFile = async (
       {
         name: structureName,
         initializer: (writer) => {
-          createObjectWriter(structure)(writer);
+          createObjectWriter(structure, createContractTree(contractValues))(writer);
           writer.write(" as const");
         },
       },
     ],
-  });
-
-  sourceFile.addTypeAlias({
-    leadingTrivia: "\n// Type-only route contracts\n",
-    name: contractsName,
-    type: contractTreeType(createContractTree(contractTypes)),
   });
 
   // Add type export
@@ -216,7 +206,7 @@ export const generateRouteFile = async (
     leadingTrivia: "\n// Type-safe route builder with parameter types\n",
     isExported: true,
     name: typeName,
-    type: `RouteBuilderObject<typeof ${structureName}, ${paramTypeMapType}, ${contractsName}>`,
+    type: `RouteBuilderObject<typeof ${structureName}, ${paramTypeMapType}>`,
   });
 
   // Add route builder instance
@@ -227,7 +217,7 @@ export const generateRouteFile = async (
     declarations: [
       {
         name: compiledRoutesName,
-        initializer: `createRouteBuilder<typeof ${structureName}, ${paramTypeMapType}, ${contractsName}>(${structureName}, [], "${basePrefix}")`,
+        initializer: `createRouteBuilder<typeof ${structureName}, ${paramTypeMapType}>(${structureName}, [], "${basePrefix}")`,
       },
     ],
   });

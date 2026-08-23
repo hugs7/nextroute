@@ -6,8 +6,8 @@
  */
 
 import { createRouteBuilder, RouteBuilderObject } from "next-typed-paths/runtime";
-import type { routeContract as routeContract0 } from "../app/api/(collections)/users/[userId]/route";
-import type { routeContract as routeContract1 } from "../app/api/portable/route";
+import { routeContract as routeContract0 } from "../app/api/(collections)/users/[userId]/route";
+import { routeContract as routeContract1 } from "../app/api/portable/route";
 import { type RouteParamTypeMap } from "../params";
 
 // Route structure definition
@@ -24,6 +24,7 @@ const routesStructure = {
       $userId: {
         $$route: true,
         $$param: "userId",
+        $$contract: routeContract0,
       },
       permissions: {
         $$route: true,
@@ -50,21 +51,12 @@ const routesStructure = {
   },
   portable: {
     $$route: true,
+    $$contract: routeContract1,
   },
 } as const;
 
-// Type-only route contracts
-type routesContracts = {
-  readonly "(collections)": { readonly users: { readonly $userId: { readonly $$contract: typeof routeContract0 } } };
-  readonly portable: { readonly $$contract: typeof routeContract1 };
-};
-
 // Type-safe route builder with parameter types
-export type Routes = RouteBuilderObject<typeof routesStructure, RouteParamTypeMap, routesContracts>;
+export type Routes = RouteBuilderObject<typeof routesStructure, RouteParamTypeMap>;
 
 // Route builder instance
-export const ROUTES = createRouteBuilder<typeof routesStructure, RouteParamTypeMap, routesContracts>(
-  routesStructure,
-  [],
-  "/api",
-);
+export const ROUTES = createRouteBuilder<typeof routesStructure, RouteParamTypeMap>(routesStructure, [], "/api");

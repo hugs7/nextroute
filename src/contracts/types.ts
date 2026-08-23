@@ -29,13 +29,13 @@ export type RouteMethodContract = Omit<RouteRequestSchemas, "body" | "formData">
 
 export type RouteContract = Partial<Record<HttpMethod, RouteMethodContract>>;
 
-/** Request and response wire types emitted by route generation for client-only consumers. */
+/** Generated request and response schemas emitted for client-only consumers. */
 export type ResolvedRouteMethodContract = {
-  request: Record<string, unknown>;
-  responses: Record<number, unknown>;
+  request: z.ZodType;
+  responses: Record<number, z.ZodType>;
 };
 
-/** Method-keyed route contract containing no runtime schemas. */
+/** Method-keyed route contract generated from portable runtime schemas. */
 export type ResolvedRouteContract = Partial<Record<HttpMethod, ResolvedRouteMethodContract>>;
 
 export type AnyRouteMethodContract = RouteMethodContract | ResolvedRouteMethodContract;
@@ -71,7 +71,7 @@ export type RouteInput<Contract extends RouteMethodContract> = Simplify<
 >;
 
 export type RouteRequest<Contract extends AnyRouteMethodContract> = Contract extends ResolvedRouteMethodContract
-  ? Contract["request"]
+  ? z.input<Contract["request"]>
   : Contract extends RouteMethodContract
     ? Simplify<
         {
@@ -105,7 +105,7 @@ export type RouteResponseData<
   Contract extends AnyRouteMethodContract,
   Status extends RouteResponseStatus<Contract>,
 > = Contract extends ResolvedRouteMethodContract
-  ? Contract["responses"][Status]
+  ? z.output<Contract["responses"][Status]>
   : Contract extends RouteMethodContract
     ? ResponseData<Contract["responses"][Status]>
     : never;
