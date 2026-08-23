@@ -3,7 +3,7 @@
  */
 
 import { camelCase, snakeCase } from "lodash-es";
-import { dirname, relative, resolve } from "path";
+import { dirname, isAbsolute, relative, resolve } from "path";
 import prettier from "prettier";
 import { Project, VariableDeclarationKind, WriterFunction, Writers } from "ts-morph";
 
@@ -76,8 +76,11 @@ const createContractTree = (contracts: RouteContractReference[]): ContractTree =
   return root;
 };
 
-const getContractModuleSpecifier = (filePath: string, outputPath: string): string => {
-  const path = relative(dirname(resolve(outputPath)), filePath)
+const getContractModuleSpecifier = (contract: RouteContractReference, outputPath: string): string => {
+  const reference = contract.moduleSpecifier ?? contract.filePath;
+  if (!isAbsolute(reference)) return reference;
+
+  const path = relative(dirname(resolve(outputPath)), reference)
     .replace(/\\/g, "/")
     .replace(/\.(?:js|jsx|ts|tsx)$/, "");
   return path.startsWith(".") ? path : `./${path}`;
@@ -88,8 +91,10 @@ const createContractTypeWriter =
   (writer) => {
     writer.block(() => {
       if (tree.contract) {
-        const moduleSpecifier = getContractModuleSpecifier(tree.contract.filePath, outputPath);
-        writer.writeLine(`readonly $$contract: typeof import(${wrapDoubleQuotes(moduleSpecifier)}).routeContract;`);
+        const moduleSpecifier = getContractModuleSpecifier(tree.contract, outputPath);
+        writer.writeLine(
+          `readonly $$contract: typeof import(${wrapDoubleQuotes(moduleSpecifier)})[${wrapDoubleQuotes(tree.contract.exportName)}];`,
+        );
       }
 
       for (const [key, child] of Object.entries(tree.children)) {
@@ -109,6 +114,13 @@ export const generateRouteFile = async (
   config: RouteConfig,
   contracts: RouteContractReference[] = [],
 ): Promise<string> => {
+  const localContract = contracts.find((contract) => !contract.portable);
+  if (config.portable && localContract) {
+    throw new Error(
+      `Portable output cannot reference inline route contract: ${localContract.filePath}. Re-export routeContract from a shared publishable module.`,
+    );
+  }
+
   const basePrefix = config.basePrefix ?? "";
   const routesName = config.routesName ?? defaultConfig.routesName;
   const compiledRoutesName = snakeCase(routesName).toUpperCase();

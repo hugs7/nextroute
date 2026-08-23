@@ -3,15 +3,18 @@
  */
 
 import { existsSync } from "fs";
-import { readFile, readdir } from "fs/promises";
-import { join, resolve } from "path";
-import { Project } from "ts-morph";
+import { readdir } from "fs/promises";
+import { dirname, join, resolve } from "path";
+import { Node, Project, SourceFile } from "ts-morph";
 
 import { PAGE_FILE_NAME, ROUTE_FILE_EXTENSIONS, ROUTE_FILE_NAME } from "@/constants";
 import { RouteNode } from "@/runtime";
 
 export type RouteContractReference = {
+  exportName: string;
   filePath: string;
+  portable: boolean;
+  moduleSpecifier?: string;
   segments: string[];
 };
 
@@ -35,10 +38,84 @@ const hasRouteFile = async (dirPath: string): Promise<boolean> => {
   return fileNames.some((fileName) => findRouteFile(dirPath, fileName));
 };
 
-const exportsRouteContract = async (filePath: string): Promise<boolean> => {
-  const project = new Project({ useInMemoryFileSystem: true });
-  const sourceFile = project.createSourceFile(filePath, await readFile(filePath, "utf-8"));
-  return sourceFile.getExportSymbols().some((symbol) => symbol.getName() === "routeContract");
+const HTTP_METHODS = new Set(["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]);
+
+const getImportedContractReference = (
+  sourceFile: SourceFile,
+  localName: string,
+): Pick<RouteContractReference, "exportName" | "filePath" | "moduleSpecifier" | "portable"> | undefined => {
+  for (const importDeclaration of sourceFile.getImportDeclarations()) {
+    const imported = importDeclaration
+      .getNamedImports()
+      .find((specifier) => (specifier.getAliasNode()?.getText() ?? specifier.getName()) === localName);
+    if (!imported) continue;
+
+    const moduleSpecifier = importDeclaration.getModuleSpecifierValue();
+    return {
+      exportName: imported.getName(),
+      filePath: sourceFile.getFilePath(),
+      moduleSpecifier: moduleSpecifier.startsWith(".")
+        ? resolve(dirname(sourceFile.getFilePath()), moduleSpecifier)
+        : moduleSpecifier,
+      portable: true,
+    };
+  }
+};
+
+const getRouteContractReference = (
+  sourceFile: SourceFile,
+): Pick<RouteContractReference, "exportName" | "filePath" | "moduleSpecifier" | "portable"> | undefined => {
+  for (const exportDeclaration of sourceFile.getExportDeclarations()) {
+    const exported = exportDeclaration
+      .getNamedExports()
+      .find((specifier) => (specifier.getAliasNode()?.getText() ?? specifier.getName()) === "routeContract");
+    if (!exported) continue;
+
+    const exportName = exported.getName();
+    const moduleSpecifier = exportDeclaration.getModuleSpecifierValue();
+    if (moduleSpecifier) {
+      return {
+        exportName,
+        filePath: sourceFile.getFilePath(),
+        moduleSpecifier: moduleSpecifier.startsWith(".")
+          ? resolve(dirname(sourceFile.getFilePath()), moduleSpecifier)
+          : moduleSpecifier,
+        portable: true,
+      };
+    }
+
+    const importedReference = getImportedContractReference(sourceFile, exportName);
+    if (importedReference) return importedReference;
+  }
+
+  if (sourceFile.getExportSymbols().some((symbol) => symbol.getName() === "routeContract")) {
+    return { exportName: "routeContract", filePath: sourceFile.getFilePath(), portable: false };
+  }
+};
+
+const getContractMethods = (sourceFile: SourceFile): string[] => {
+  const declaration = sourceFile.getExportedDeclarations().get("routeContract")?.[0];
+  if (!declaration || !Node.isVariableDeclaration(declaration)) return [];
+
+  const initializer = declaration.getInitializer();
+  const contract = Node.isCallExpression(initializer) ? initializer.getArguments()[0] : initializer;
+  if (!Node.isObjectLiteralExpression(contract)) return [];
+
+  return contract
+    .getProperties()
+    .filter(Node.isPropertyAssignment)
+    .map((property) => property.getName())
+    .filter((name) => HTTP_METHODS.has(name));
+};
+
+const validateContractMethods = (sourceFile: SourceFile): void => {
+  const exportedMethods = new Set(sourceFile.getExportSymbols().map((symbol) => symbol.getName()));
+  const missingMethods = getContractMethods(sourceFile).filter((method) => !exportedMethods.has(method));
+  if (missingMethods.length > 0) {
+    throw new Error(
+      `${sourceFile.getFilePath()} declares ${missingMethods.join(", ")} in routeContract but does not export matching route handlers`,
+    );
+  }
 };
 
 /**
@@ -91,8 +168,14 @@ const scanDirectoryNode = async (
   }
 
   const routeFile = findRouteFile(dirPath, ROUTE_FILE_NAME);
-  if (routeFile && (await exportsRouteContract(routeFile))) {
-    contracts.push({ filePath: routeFile, segments });
+  if (routeFile) {
+    const project = new Project({ skipAddingFilesFromTsConfig: true });
+    const sourceFile = project.addSourceFileAtPath(routeFile);
+    const contract = getRouteContractReference(sourceFile);
+    if (contract) {
+      validateContractMethods(sourceFile);
+      contracts.push({ ...contract, segments });
+    }
   }
 
   // Read directory contents

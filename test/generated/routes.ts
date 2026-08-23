@@ -46,6 +46,9 @@ const routesStructure = {
   "hyphened-route": {
     $$route: true,
   },
+  portable: {
+    $$route: true,
+  },
 } as const;
 
 // Type-only route contract map
@@ -53,9 +56,12 @@ type routesContracts = {
   readonly "(collections)": {
     readonly users: {
       readonly $userId: {
-        readonly $$contract: typeof import("../app/api/(collections)/users/[userId]/route").routeContract;
+        readonly $$contract: (typeof import("../app/api/(collections)/users/[userId]/route"))["routeContract"];
       };
     };
+  };
+  readonly portable: {
+    readonly $$contract: (typeof import("../contracts/portable"))["portableRouteContract"];
   };
 };
 
