@@ -26,6 +26,7 @@ export const typeToZodSchema = (type: Type, location: Node): string => {
   if (symbolName === "Date" || symbolName === "NativeDate" || text === "Date" || text === "NativeDate") {
     return "z.date()";
   }
+  if (symbolName === "ObjectId") return "z.string()";
 
   if (type.isUnion()) {
     const members = type.getUnionTypes();
@@ -74,13 +75,20 @@ export const typeToZodSchema = (type: Type, location: Node): string => {
         definedTypes.length === 2 && definedTypes.some((member) => member.isNull())
           ? definedTypes.find((member) => !member.isNull())
           : undefined;
-      const definedSchema = nonNullType
-        ? `${typeToZodSchema(nonNullType, declaration)}.nullable()`
-        : definedTypes.length === 1 && definedTypes[0]
-          ? typeToZodSchema(definedTypes[0], declaration)
-          : `z.union([${definedTypes.map((member) => typeToZodSchema(member, declaration)).join(", ")}])`;
-      const schema = property.isOptional() ? `${definedSchema}.optional()` : typeToZodSchema(propertyType, declaration);
-      return `${propertyKey(property.getName())}: ${schema}`;
+
+      try {
+        const definedSchema = nonNullType
+          ? `${typeToZodSchema(nonNullType, declaration)}.nullable()`
+          : definedTypes.length === 1 && definedTypes[0]
+            ? typeToZodSchema(definedTypes[0], declaration)
+            : `z.union([${definedTypes.map((member) => typeToZodSchema(member, declaration)).join(", ")}])`;
+        const schema = property.isOptional()
+          ? `${definedSchema}.optional()`
+          : typeToZodSchema(propertyType, declaration);
+        return `${propertyKey(property.getName())}: ${schema}`;
+      } catch (error) {
+        throw new Error(`Cannot generate a Zod schema for property ${property.getName()}`, { cause: error });
+      }
     });
     return `z.strictObject({ ${fields.join(", ")} })`;
   }

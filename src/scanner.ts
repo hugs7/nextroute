@@ -23,6 +23,18 @@ export type RouteManifest = {
   structure: RouteNode;
 };
 
+export type RouteContractCache = Map<
+  string,
+  {
+    methods: ResolvedContractMethod[];
+    sourceText: string;
+  }
+>;
+
+type PendingRouteContract = Omit<RouteContractReference, "methods"> & {
+  sourceFile: SourceFile;
+};
+
 /**
  * Check if a directory contains a route.ts or page.ts file
  */
@@ -40,12 +52,19 @@ const hasRouteFile = async (dirPath: string): Promise<boolean> => {
 
 const HTTP_METHODS = new Set(["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]);
 
-const hasRouteContract = (sourceFile: SourceFile): boolean =>
-  sourceFile.getExportSymbols().some((symbol) => symbol.getName() === "routeContract");
+const hasExportedDeclaration = (sourceFile: SourceFile, name: string): boolean =>
+  sourceFile.getVariableDeclaration(name)?.getVariableStatement()?.isExported() === true ||
+  sourceFile.getFunction(name)?.isExported() === true ||
+  sourceFile
+    .getExportDeclarations()
+    .flatMap((declaration) => declaration.getNamedExports())
+    .some((namedExport) => (namedExport.getAliasNode() ?? namedExport.getNameNode()).getText() === name);
+
+const hasRouteContract = (sourceFile: SourceFile): boolean => hasExportedDeclaration(sourceFile, "routeContract");
 
 const getContractMethods = (sourceFile: SourceFile): string[] => {
-  const declaration = sourceFile.getExportedDeclarations().get("routeContract")?.[0];
-  if (!declaration || !Node.isVariableDeclaration(declaration)) return [];
+  const declaration = sourceFile.getVariableDeclaration("routeContract");
+  if (!declaration) return [];
 
   const initializer = declaration.getInitializer();
   const contract = Node.isCallExpression(initializer) ? initializer.getArguments()[0] : initializer;
@@ -59,8 +78,7 @@ const getContractMethods = (sourceFile: SourceFile): string[] => {
 };
 
 const validateContractMethods = (sourceFile: SourceFile): void => {
-  const exportedMethods = new Set(sourceFile.getExportSymbols().map((symbol) => symbol.getName()));
-  const missingMethods = getContractMethods(sourceFile).filter((method) => !exportedMethods.has(method));
+  const missingMethods = getContractMethods(sourceFile).filter((method) => !hasExportedDeclaration(sourceFile, method));
   if (missingMethods.length > 0) {
     throw new Error(
       `${sourceFile.getFilePath()} declares ${missingMethods.join(", ")} in routeContract but does not export matching route handlers`,
@@ -109,10 +127,9 @@ const getBuilderKey = (routeKey: string): string => {
 const scanDirectoryNode = async (
   dirPath: string,
   segments: string[],
-  contracts: RouteContractReference[],
+  contracts: PendingRouteContract[],
   paramNames: Set<string>,
   discoverContracts: boolean,
-  emitContractSchemas: boolean,
   project?: Project,
 ): Promise<RouteNode> => {
   const node: RouteNode = {};
@@ -130,13 +147,11 @@ const scanDirectoryNode = async (
   if (routeFile) {
     if (!project) throw new Error("Contract discovery requires a TypeScript project");
     const sourceFile = project.addSourceFileAtPath(routeFile);
-    project.resolveSourceFileDependencies();
     if (hasRouteContract(sourceFile)) {
       validateContractMethods(sourceFile);
-      const resolvedContract = emitContractSchemas ? resolveRouteContractSchemas(project, sourceFile) : { methods: [] };
       contracts.push({
-        methods: resolvedContract.methods,
         segments,
+        sourceFile,
         sourcePath: sourceFile.getFilePath(),
       });
     }
@@ -187,7 +202,6 @@ const scanDirectoryNode = async (
         contracts,
         new Set([...paramNames, dynamicSegment.paramName]),
         discoverContracts,
-        emitContractSchemas,
         project,
       );
       childNode.$$param = dynamicSegment.paramName;
@@ -202,7 +216,6 @@ const scanDirectoryNode = async (
         contracts,
         paramNames,
         discoverContracts,
-        emitContractSchemas,
         project,
       );
       node[dirName] = childNode;
@@ -227,9 +240,10 @@ export const generateRouteManifest = async (
   inputDir: string,
   discoverContracts: boolean = true,
   emitContractSchemas: boolean = true,
+  contractCache?: RouteContractCache,
 ): Promise<RouteManifest> => {
   const resolvedPath = resolve(inputDir);
-  const contracts: RouteContractReference[] = [];
+  const pendingContracts: PendingRouteContract[] = [];
   let directory = resolvedPath;
   while (!existsSync(join(directory, "tsconfig.json")) && directory !== parse(directory).root) {
     directory = dirname(directory);
@@ -239,17 +253,40 @@ export const generateRouteManifest = async (
     ? new Project({
         ...(existsSync(tsConfigFilePath) ? { tsConfigFilePath } : {}),
         skipAddingFilesFromTsConfig: true,
+        skipFileDependencyResolution: true,
       })
     : undefined;
-  const structure = await scanDirectoryNode(
-    resolvedPath,
-    [],
-    contracts,
-    new Set(),
-    discoverContracts,
-    emitContractSchemas,
-    project,
-  );
+  const structure = await scanDirectoryNode(resolvedPath, [], pendingContracts, new Set(), discoverContracts, project);
+
+  const cachedMethods = new Map<string, ResolvedContractMethod[]>();
+  if (emitContractSchemas && contractCache && project) {
+    for (const contract of pendingContracts) {
+      const cached = contractCache.get(contract.sourcePath);
+      if (cached?.sourceText === contract.sourceFile.getFullText()) {
+        cachedMethods.set(contract.sourcePath, cached.methods);
+        project.removeSourceFile(contract.sourceFile);
+      }
+    }
+  }
+
+  if (emitContractSchemas && cachedMethods.size < pendingContracts.length) {
+    project?.resolveSourceFileDependencies();
+  }
+
+  const contracts = pendingContracts.map(({ sourceFile, ...contract }) => {
+    try {
+      const methods =
+        cachedMethods.get(contract.sourcePath) ??
+        (emitContractSchemas ? resolveRouteContractSchemas(project!, sourceFile).methods : []);
+      if (emitContractSchemas && contractCache && !cachedMethods.has(contract.sourcePath)) {
+        contractCache.set(contract.sourcePath, { methods, sourceText: sourceFile.getFullText() });
+      }
+      return { ...contract, methods };
+    } catch (error) {
+      throw new Error(`Failed to resolve route contract in ${sourceFile.getFilePath()}`, { cause: error });
+    }
+  });
+
   return { contracts, structure };
 };
 

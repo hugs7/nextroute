@@ -20,4 +20,12 @@ describe("typeToZodSchema", () => {
       "z.strictObject({ createdAt: z.date(), label: z.string().nullable().optional(), values: z.tuple([z.number(), z.boolean()]), metadata: z.record(z.string(), z.never()) })",
     );
   });
+
+  it("represents MongoDB ObjectIds as JSON strings", () => {
+    const project = new Project({ useInMemoryFileSystem: true });
+    const source = project.createSourceFile("schema.ts", "declare class ObjectId {}; type Wire = { id: ObjectId };");
+    const declaration = source.getTypeAliasOrThrow("Wire");
+
+    expect(typeToZodSchema(declaration.getType(), declaration)).toBe("z.strictObject({ id: z.string() })");
+  });
 });
