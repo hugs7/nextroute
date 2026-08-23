@@ -20,7 +20,7 @@ import {
   PACKAGE_VERSION,
 } from "@/constants";
 import { mkdirIfNotExists } from "@/file";
-import { generateRouteFile } from "@/generator";
+import { generateRouteFile, resolveContractMode } from "@/generator";
 import { generateRouteManifest } from "@/scanner";
 import { RouteConfig } from "@/types";
 import { startWatcher } from "@/watcher";
@@ -40,7 +40,11 @@ const generateRoutes = async (config: RouteConfig): Promise<void> => {
     console.log("🔍 Scanning directory:", config.input);
 
     // Scan directory structure
-    const { contracts, structure } = await generateRouteManifest(config.input, config.contracts !== false);
+    const { contracts, structure } = await generateRouteManifest(
+      config.input,
+      config.contracts !== false,
+      resolveContractMode(config) === "external",
+    );
 
     // Generate TypeScript code
     const code = await generateRouteFile(structure, config, contracts);

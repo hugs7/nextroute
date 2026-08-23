@@ -1,8 +1,9 @@
 import { dirname, relative } from "path";
-import { Project, SourceFile, TypeFormatFlags } from "ts-morph";
+import { Project, SourceFile } from "ts-morph";
+
+import { typeToZodSchema } from "@/zodSchema";
 
 const HTTP_METHODS = new Set(["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]);
-const TYPE_FORMAT_FLAGS = TypeFormatFlags.InTypeAlias | TypeFormatFlags.NoTruncation;
 
 const TYPE_HELPERS = `
 import type { z } from "zod";
@@ -40,16 +41,17 @@ const getModuleSpecifier = (fromPath: string, toPath: string): string => {
   return path.startsWith(".") ? path : `./${path}`;
 };
 
-const getTypeText = (sourceFile: SourceFile, aliasName: string): string => {
-  const declaration = sourceFile.getTypeAliasOrThrow(aliasName);
-  const text = declaration.getType().getText(declaration, TYPE_FORMAT_FLAGS);
-  if (/\b(?:typeof\s+)?import\s*\(/.test(text)) {
-    throw new Error(`${aliasName} could not be emitted as a self-contained type: ${text}`);
-  }
-  return text;
+export type ResolvedContractMethod = {
+  method: string;
+  requestSchema: string;
+  responses: { schema: string; status: string }[];
 };
 
-export const resolveRouteContractType = (project: Project, routeSourceFile: SourceFile): string => {
+export type ResolvedRouteContract = {
+  methods: ResolvedContractMethod[];
+};
+
+export const resolveRouteContractSchemas = (project: Project, routeSourceFile: SourceFile): ResolvedRouteContract => {
   const contractSymbol = routeSourceFile.getExportSymbols().find((symbol) => symbol.getName() === "routeContract");
   if (!contractSymbol) throw new Error(`${routeSourceFile.getFilePath()} does not export routeContract`);
 
@@ -78,29 +80,30 @@ export const resolveRouteContractType = (project: Project, routeSourceFile: Sour
   );
 
   try {
-    const methodTypes = methods.map((method) => {
+    const resolvedMethods: ResolvedContractMethod[] = [];
+    methods.forEach((method) => {
       const methodName = method.getName();
       const methodType = method.getTypeAtLocation(routeSourceFile);
       const responses = methodType.getPropertyOrThrow("responses").getTypeAtLocation(routeSourceFile);
-      const responseTypes = responses
-        .getProperties()
-        .map(
-          (response) =>
-            `readonly ${response.getName()}: ${getTypeText(helperSource, `Response_${methodName}_${response.getName()}`)};`,
-        )
-        .join("\n");
+      const requestDeclaration = helperSource.getTypeAliasOrThrow(`Request_${methodName}`);
+      const resolvedResponses: ResolvedContractMethod["responses"] = [];
+      responses.getProperties().forEach((response) => {
+        const aliasName = `Response_${methodName}_${response.getName()}`;
+        const declaration = helperSource.getTypeAliasOrThrow(aliasName);
+        resolvedResponses.push({
+          schema: typeToZodSchema(declaration.getType(), declaration),
+          status: response.getName(),
+        });
+      });
 
-      return `readonly ${methodName}: {
-        readonly request: ${getTypeText(helperSource, `Request_${methodName}`)};
-        readonly responses: {
-          ${responseTypes}
-        };
-      };`;
+      resolvedMethods.push({
+        method: methodName,
+        requestSchema: typeToZodSchema(requestDeclaration.getType(), requestDeclaration),
+        responses: resolvedResponses,
+      });
     });
 
-    return `{
-      ${methodTypes.join("\n")}
-    }`;
+    return { methods: resolvedMethods };
   } finally {
     project.removeSourceFile(helperSource);
   }

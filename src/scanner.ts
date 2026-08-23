@@ -9,12 +9,13 @@ import { dirname, join, parse, resolve } from "path";
 import { Node, Project, SourceFile } from "ts-morph";
 
 import { PAGE_FILE_NAME, ROUTE_FILE_EXTENSIONS, ROUTE_FILE_NAME } from "@/constants";
-import { resolveRouteContractType } from "@/contractType";
+import { ResolvedContractMethod, resolveRouteContractSchemas } from "@/contractType";
 import { RouteNode } from "@/runtime";
 
 export type RouteContractReference = {
+  methods: ResolvedContractMethod[];
   segments: string[];
-  typeText: string;
+  sourcePath: string;
 };
 
 export type RouteManifest = {
@@ -111,6 +112,7 @@ const scanDirectoryNode = async (
   contracts: RouteContractReference[],
   paramNames: Set<string>,
   discoverContracts: boolean,
+  emitContractSchemas: boolean,
   project?: Project,
 ): Promise<RouteNode> => {
   const node: RouteNode = {};
@@ -131,9 +133,11 @@ const scanDirectoryNode = async (
     project.resolveSourceFileDependencies();
     if (hasRouteContract(sourceFile)) {
       validateContractMethods(sourceFile);
+      const resolvedContract = emitContractSchemas ? resolveRouteContractSchemas(project, sourceFile) : { methods: [] };
       contracts.push({
+        methods: resolvedContract.methods,
         segments,
-        typeText: resolveRouteContractType(project, sourceFile),
+        sourcePath: sourceFile.getFilePath(),
       });
     }
   }
@@ -183,6 +187,7 @@ const scanDirectoryNode = async (
         contracts,
         new Set([...paramNames, dynamicSegment.paramName]),
         discoverContracts,
+        emitContractSchemas,
         project,
       );
       childNode.$$param = dynamicSegment.paramName;
@@ -197,6 +202,7 @@ const scanDirectoryNode = async (
         contracts,
         paramNames,
         discoverContracts,
+        emitContractSchemas,
         project,
       );
       node[dirName] = childNode;
@@ -217,7 +223,11 @@ export const scanDirectory = async (dirPath: string): Promise<RouteNode> => {
 /**
  * Scan route structure and statically discover exported route contracts.
  */
-export const generateRouteManifest = async (inputDir: string, discoverContracts = true): Promise<RouteManifest> => {
+export const generateRouteManifest = async (
+  inputDir: string,
+  discoverContracts: boolean = true,
+  emitContractSchemas: boolean = true,
+): Promise<RouteManifest> => {
   const resolvedPath = resolve(inputDir);
   const contracts: RouteContractReference[] = [];
   let directory = resolvedPath;
@@ -231,7 +241,15 @@ export const generateRouteManifest = async (inputDir: string, discoverContracts 
         skipAddingFilesFromTsConfig: true,
       })
     : undefined;
-  const structure = await scanDirectoryNode(resolvedPath, [], contracts, new Set(), discoverContracts, project);
+  const structure = await scanDirectoryNode(
+    resolvedPath,
+    [],
+    contracts,
+    new Set(),
+    discoverContracts,
+    emitContractSchemas,
+    project,
+  );
   return { contracts, structure };
 };
 

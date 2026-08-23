@@ -16,6 +16,6 @@ export type {
 } from "@/runtime/types";
 export { generateRouteManifest, generateRouteStructure, scanDirectory } from "@/scanner";
 export type { RouteContractReference, RouteManifest } from "@/scanner";
-export type { ParamTypeMap, RouteConfig } from "@/types";
+export type { ContractMode, ParamTypeMap, RouteConfig } from "@/types";
 export { startWatcher } from "@/watcher";
 export type { RegenerateCallback } from "@/watcher";

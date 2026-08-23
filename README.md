@@ -101,10 +101,16 @@ export const PATCH = createSiteValidatedRoute(routeContract.PATCH)(async ({ inpu
 `parseRouteRequest(routeContract.PATCH, request, context)` is available when a custom composer needs a lower-level
 integration. `routeJson` and `routeNoContent` enforce declared status/content-type combinations.
 
-After generation, each contracted route node carries self-contained request and response types. The generated output
-does not import route files or Zod, so it can be published from a shared models package without depending on the Next.js
-application. The client restricts methods and infers request and status-specific response types without adding contract
-data to the browser bundle:
+After generation, each contracted route carries type-only request and response metadata without adding `$$contract` to
+the runtime route object. The generator chooses the representation based on where the output lives:
+
+- **Internal output** imports each route's `routeContract` with `import type` and references it directly.
+- **External output** emits standalone Zod schemas and derives the contract with `z.infer`, so the generated file can be
+  published from a shared package without importing the Next.js application.
+
+Set `contractMode` explicitly when the automatic project-boundary detection does not match your monorepo layout. The
+client restricts methods and infers request and status-specific response types without adding contract data to the
+browser route object:
 
 ```typescript
 import { createFetchTransport, createRouteClient } from "next-typed-paths/client";
@@ -285,6 +291,7 @@ export default configs;
   - Any parameter not defined in your type map will default to `string` type.
 - **`routesName`** (`string`, optional): The name for the generated routes constant and type. The constant will be UPPERCASED (e.g., `"routes"` becomes `const ROUTES`), and the type will be PascalCased (e.g., `type Routes`). Defaults to `"routes"`.
 - **`contracts`** (`boolean`, optional): Discover route contracts and embed their resolved request and response types in route nodes. Set to `false` for path-only output. Defaults to `true`.
+- **`contractMode`** (`"auto" | "internal" | "external"`, optional): Controls contract generation. `internal` uses type-only imports from App Router route files; `external` emits standalone Zod schemas and uses `z.infer`; `auto` selects `internal` when the output is inside the Next.js project and `external` otherwise. Defaults to `auto`.
 - **`imports`** (`string[]`, optional): An array of import statements to include at the top of the generated routes file. Useful if your route builders need to reference custom types or utilities. For example, `["import { z } from 'zod';", "import type { User } from './types';"]`. Defaults to `[]`.
 
 ## CLI Commands

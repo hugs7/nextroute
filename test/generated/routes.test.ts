@@ -1,6 +1,8 @@
-import { RouteBody, RouteContractOf, RouteMethods, TypedRoute } from "next-typed-paths/runtime";
+import { RouteBody, RouteContractOf, RouteMethods, RouteResponses, TypedRoute } from "next-typed-paths/runtime";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
+import type { routeContract as userRouteContract } from "../app/api/(collections)/users/[userId]/route";
+import { EXTERNAL_ROUTES } from "./external-routes";
 import { ROUTES } from "./routes";
 
 describe("Generated routes", () => {
@@ -30,21 +32,19 @@ describe("Generated routes", () => {
     type UserRoute = ReturnType<typeof ROUTES.collections.users.$userId>;
     type UserRouteParam = Parameters<typeof ROUTES.collections.users.$userId>[0];
 
-    type ExpectedContract = {
-      readonly GET: {
-        readonly request: { params: { userId: "contract_user" } };
-        readonly responses: { readonly 200: { message: string } };
-      };
-      readonly POST: {
-        readonly request: { body: { name: string }; params: { userId: "contract_user" } };
-        readonly responses: { readonly 201: { id: string; name: string } };
-      };
-    };
-
-    expectTypeOf<UserRoute>().toEqualTypeOf<TypedRoute<ExpectedContract>>();
-    expectTypeOf<RouteContractOf<UserRoute>>().toEqualTypeOf<ExpectedContract>();
+    expectTypeOf<UserRoute>().toEqualTypeOf<TypedRoute<typeof userRouteContract>>();
+    expectTypeOf<RouteContractOf<UserRoute>>().toEqualTypeOf<typeof userRouteContract>();
     expectTypeOf<RouteMethods<UserRoute>>().toEqualTypeOf<"GET" | "POST">();
     expectTypeOf<RouteBody<UserRoute, "POST">>().toEqualTypeOf<{ name: string }>();
     expectTypeOf<UserRouteParam>().toEqualTypeOf<"contract_user">();
+  });
+
+  it("infers the same contract from external generated Zod schemas", () => {
+    type ExternalUserRoute = ReturnType<typeof EXTERNAL_ROUTES.collections.users.$userId>;
+    type InternalUserRoute = ReturnType<typeof ROUTES.collections.users.$userId>;
+
+    expect(EXTERNAL_ROUTES.collections.users.$userId("contract_user")).toBe("/api/users/contract_user");
+    expectTypeOf<RouteBody<ExternalUserRoute, "POST">>().toEqualTypeOf<RouteBody<InternalUserRoute, "POST">>();
+    expectTypeOf<RouteResponses<ExternalUserRoute, "GET">>().toEqualTypeOf<RouteResponses<InternalUserRoute, "GET">>();
   });
 });
