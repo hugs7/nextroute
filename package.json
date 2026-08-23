@@ -19,6 +19,7 @@
   },
   "license": "MIT",
   "author": "Hugo Burton",
+  "packageManager": "pnpm@11.13.1",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -71,11 +72,11 @@
   ],
   "scripts": {
     "tsc": "tsc -p tsconfig.lib.json",
-    "build": "npm run tsc && vite build",
-    "prepublishOnly": "npm run build",
+    "build": "pnpm tsc && vite build",
+    "prepublishOnly": "pnpm build",
     "test": "vitest",
-    "test:e2e": "npm run build --silent && node dist/cli.js generate --config ./test/routes.config.ts",
-    "test:e2e:watch": "npm run test:e2e -- --watch"
+    "test:e2e": "pnpm --silent build && node dist/cli.js generate --config ./test/routes.config.ts",
+    "test:e2e:watch": "pnpm test:e2e -- --watch"
   },
   "dependencies": {
     "chokidar": "^5.0.0",
@@ -105,5 +106,10 @@
     "axios": {
       "optional": true
     }
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

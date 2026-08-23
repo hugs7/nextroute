@@ -27,7 +27,7 @@ test/
 Run from project root:
 
 ```bash
-npm run build
+pnpm build
 node dist/cli.js generate --config ./test/routes.config.ts
 ```
 
